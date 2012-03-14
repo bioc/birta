@@ -1,0 +1,224 @@
+%\VignetteIndexEntry{Bayesian Inference of Regulation of Transcriptional Activity}
+%\VignetteDepends{}
+%\VignetteKeywords{Regulatory network, Bayesian network, gene expresseion, transcription factor, miRNA}
+%\VignettePackage{birta} % name of package
+\documentclass[a4paper]{article}
+
+
+\title{Joint Bayesian Inference of miRNA and Transcription Factor Activities}
+\author{Benedikt Zacher, Khalid Abnaof, Stephan Gade, Erfan Younesi, \\Achim Tresch, Holger Fr\"ohlich}
+
+\SweaveOpts{echo=FALSE}
+\usepackage{a4wide}
+
+\newcommand{\Robject}[1]{{\texttt{#1}}}
+\newcommand{\Rfunction}[1]{{\texttt{#1}}}
+\newcommand{\Rpackage}[1]{{\textit{#1}}}
+\newcommand{\Rclass}[1]{{\textit{#1}}}
+\newcommand{\Rmethod}[1]{{\textit{#1}}}
+\newcommand{\Rfunarg}[1]{{\texttt{#1}}}
+
+
+\begin{document}
+
+\maketitle
+
+\section{Introduction}
+Expression levels of mRNA molecules are regulated by different processes, comprising inhibition or activation by transcription factors (TF) and post-transcriptional degradation by microRNAs (miRNA). \Rpackage{birta} (Bayesian Inference of Regulation of Transcriptional Activity) uses the regulatory networks of TFs and miRNAs together with mRNA and miRNA expression data to infer switches of regulatory activity between two conditions. A Bayesian network is used to model the regulatory structure. In the model, mRNA expression levels depend on the activity states of its regulating miRNAs and TFs and the miRNA expression is dependent on the associated miRNA activity. \Rpackage{birta} uses Markov-Chain-Monte-Carlo (MCMC) sampling to infer these activity states, using one of the conditions as a reference. During MCMC, switch moves - toggling the state of a regulator between active and inactive - and swap moves - exchanging the activitiy states of either two miRNAs or two TFs - are used to sample from the posterior distribution. \cite{zacher:submitted} \\
+This vignette presents the application of the \Rpackage{birta} package in different scenarios including a simulated and a real data set. The package can be loaded by typing:
+
+<<loading library, echo=TRUE, results=hide>>=
+library(birta)
+@
+
+\section{Joint inference of transcription factor and miRNA activities} 
+The main function of the package, \Rfunction{birta}, provides a flexible and easy-to-use interface to the method. Before the function is applied to an artifical and a real data set, the most important options are explained in the following. For a thorough description of all options, see the \Rfunction{birta} help page. \\
+
+\begin{itemize}
+  \item \textbf{model}. There are two different models available to infer activity states. "all-plug-in" models mRNA and miRNA expression as gaussian distributions with (limma) estimates for its parameters from the data, whereas the "no-plug-in" model implements a fully bayesian approach, which uses gamma distributions as priors for the unknown parameters. For a detailed description and comparison of these models, see \cite{zacher:submitted}.
+  \item \textbf{limmamRNA} and \textbf{limmamiRNA} are the output of the function \Rfunction{limmaAnalysis} for mRNA and miRNA expression data. \Rpackage{limma} is used to calculate differentially expressed mRNAs and miRNAs \cite{Smyth2004}. Its output is used for the initialization of the plug-in parameters of the model. The initialization of $\omega$, describing the effect of an active regulator on mRNA expression, as well as the parameterization of the probability distributions is estimated based on the limma output. \Rfunction{limmaAnalysis} is intended to give an easy-to-use interface to differential expression analysis using \Rpackage{limma}. However, a customized analysis can be passed to \Rfunction{birta} as well.
+  \item \textbf{sample.weights}. In both models, the initial $\omega$ vector of the regulator-target graph may be sampled together with the activity states. This is realised by setting a prior probability for $\omega$ and slightly altering $\omega$ with samples from a gaussian distribution (parameters \Rfunarg{weightSampleMean} and \Rfunarg{weightSampleVariance}) in each iteration.
+  \item \textbf{potential\_swaps} is the output of \Rfunction{get\_potential\_swaps}. In a swap move, two TFs or two miRNAs, having different activity states, exchange these. This is especially useful for highly overlapping regulator-target graphs. If not specified, \Rfunction{birta} automatically calls \Rfunction{get\_potential\_swaps} to calculate all potential swaps with the default threshold of a minimal overlap of targets between regulators. However, if it needs to be pre-computed differently, it can be directly passed to \Rfunction{birta}.
+  \item If \textbf{run.pretest} is \Rclass{true}, miRNA and TF states are initialized with the result of a hypergeometric test in order to improve convergence. Each target gene set is tested for overrepresentation of differentially expressed genes. The corresponding regulator is set active, if the gene set shows an enrichment with a p-value $<0.05$ (default). This option should only be used in case of observed convergence problems. Otherwise the inference starts with all activity states set to zero.
+  \item \textbf{nrep} is an integer vector of length four, which specifies the number of replicates for miRNA and mRNA expression experiments: c(\#miRNA-reps-condition1, \#miRNA-reps-condition2, \#mRNA-reps-condition1, \#mRNA-reps-condition2).
+\end{itemize}
+
+\subsection{Application to a simulated data set}
+A simulated expression data set of 1000 genes is used together with a human TF- and miRNA-target graph. The TF-target gene network was compiled by computing TF binding affinities to promoter sequences of all human genes according to the TRAP model \cite{Roider2007TRAP} using TRANSFAC matrices. The miRNA-target graph includes miRNA-target interactions, which are either experimentally confirmed (Tarbase) \cite{Papadopoulos2009} or predicted at least by two of the following methdos: miRanda \cite{Betel2008}, miRBase \cite{GriffithsJones2008} and miRDB \cite{Wang2008}. For details on the simulation and construction of the regulatory networks, see \cite{zacher:submitted}. \\
+\Rfunction{data(humanSim)} loads the objects \Robject{genesets}, which holds the regulator-target graphs, as well as the simulated expression data. The two target networks are named lists associating each TF, resp. miRNA with its target gene sets. The expression data is stored in a matrix. In this example, there are five replicates for the "treated" case and three for the "control" case for mRNA and miRNA expression measurements.
+
+<<load simulated data, echo=TRUE>>=
+data(humanSim)
+str(head(genesets$TF))
+str(head(genesets$miRNA))
+head(sim$dat.mRNA)
+@
+
+\Rfunction{limmaAnalysis} fits a linear model to all mRNA and miRNA expression values and computes log fold changes and p-values for differential expression for comparisons of two groups. A design matrix must be generated and passed to \Rfunction{limmaAnalysis} together with contrasts (see the \Rpackage{limma} vignette for details). The output contains estimates of the variance and fold changes, which are used to parameterize and initialize the model. 
+
+<<simulation limma, echo=TRUE>>=
+design = model.matrix(~0+factor(c(rep("control", 5), rep("treated", 5))))
+colnames(design) = c("control", "treated")
+contrasts = "treated - control"
+limmamRNA = limmaAnalysis(sim$dat.mRNA, design, contrasts)
+limmamiRNA = limmaAnalysis(sim$dat.miRNA, design, contrasts)
+@
+
+Since miRNA expressions are available, miRNAs are assumed to be active under the condition, where it is upregulated and its targets are downregulated. In general, transcription factor expression is not informative for its activity, thus a switch in regulatory acitvity is predicted. However, a condition specific model, considering expression values of differentially expressed TFs can be applied with \Rpackage{birta} and is discussed in section 2.2. \\
+Now, the data is passed to \Rfunction{birta}. To keep the computations low in this example, the $\omega$ vector is not sampled (\Rfunarg{sample.weights=FALSE}), potential swaps were pre-computed and the number of iterations is very low. In a real application, the number of iterations should be much higher to make sure, that the Markov-Cahin has converged.
+
+<<simulation MCMC, echo=TRUE, results=hide>>=
+sim_result = birta(sim$dat.mRNA, sim$dat.miRNA, limmamRNA=limmamRNA, 
+limmamiRNA=limmamiRNA, nrep=c(5,5,5,5), genesets=genesets, 
+model="all-plug-in", niter=50000, nburnin=10000, 
+sample.weights=FALSE, potential_swaps=potential_swaps)
+@
+
+
+Figure \ref{figure1} shows the log-likelihood during the sampling to check the convergence. 
+
+<<simulation log-lik plot dummy, echo=TRUE, eval=FALSE, results=hide>>=
+plotConvergence(sim_result, nburnin=10000, title="simulation")
+@
+
+<<simulation log-lik plot, echo=FALSE, results=hide>>=
+pdf("loglik_sim.pdf")
+plotConvergence(sim_result, nburnin=10000, title="simulation")
+dev.off()	
+@
+
+
+\begin{figure}[htp]
+  \centering
+\includegraphics[width=9cm]{loglik_sim.pdf}
+\caption{Log-likelihood during MCMC sampling for the simulated data set.}
+\label{figure1}
+\end{figure}
+
+The \Robject{sim\_result} object is a \Rclass{list} and the sampled activity states can be accessed via \Robject{TFActivitySwitch}, \Robject{miRNAstates1} and \Robject{miRNAstates2} respectively. Each vector contains the frequency, with which a specific regulator was sampled from the posterior distribution. A value of 0 means, that the regulator was never sampled as active, meaning switching it to active fits the model very badly. A value of 1 means, that the regulator of interest is most certainly active, since switching its state to active substantially increases the likelihood of the model. \\
+
+
+<<simulation result, echo=TRUE>>=
+sim$TFstates[sim$TFstates == 1]
+sim_result$TFActivitySwitch[sim_result$TFActivitySwitch > 0]
+sim$miRNAstates[sim$miRNAstates == 1]
+sim_result$miRNAstates1[sim_result$miRNAstates1 > 0]
+sim_result$miRNAstates2[sim_result$miRNAstates2 > 0]
+@
+
+
+\subsubsection*{\Rpackage{birta} with a miRNA-target graph only}
+
+It is possible to apply \Rpackage{birta} only to either miRNA-target or TF-target graph. To do this, the miRNA-target graph from the above example is simply extracted and passed to \Rfunction{birta} with the expression data. An example application to a TF-target graph without miRNAs is shown in the next section.
+
+<<Only miRNA-target graph, echo=TRUE, results=hide>>=
+genesetsmiRNA = genesets["miRNA"]
+result_miRonly = birta(sim$dat.mRNA, sim$dat.miRNA, limmamRNA=limmamRNA, 
+limmamiRNA=limmamiRNA, nrep=c(5,5,5,5), genesets=genesetsmiRNA, 
+model="all-plug-in", niter=50000, nburnin=10000, 
+sample.weights=FALSE, potential_swaps=potential_swaps)
+@
+
+<<Only miRNA-target graph result, echo=TRUE>>=
+result_miRonly$miRNAstates1[result_miRonly$miRNAstates1 > 0]
+result_miRonly$miRNAstates2[result_miRonly$miRNAstates2 > 0]
+@
+
+\subsection{Application to an E. Coli data set}
+Preprocessed microarray data \cite{Covert2004}, as well as a filtered TF-target graph \cite{Castelo2009} is used to demonstrate the utility of \Rpackage{birta} on a real data set to infer TF activity states. The expression experiment consists of three replicates from E. Coli during aerobic growth and four replicates during anaerobic growth. The TF-target graph contains annotations for 160 transcription factors. Expression values are stored in an \Rclass{ExpressionSet}.
+
+<<EColi eSet, echo=TRUE>>=
+data(EColiOxygen)
+EColiOxygen
+head(exprs(EColiOxygen))
+@
+
+Differentially expressed genes are calculated using \Rfunction{limmaAnalysis}, which is then passed to \Rfunction{birta}, together with the TF-target graph \Robject{EColiNetwork}. 
+
+<<EColi, echo=TRUE, results=hide>>=
+design = model.matrix(~0+factor(pData(EColiOxygen)$GrowthProtocol))
+colnames(design) = c("aerobic.growth", "anaerobic.growth")
+contrasts = "anaerobic.growth - aerobic.growth"
+limmamRNA = limmaAnalysis(EColiOxygen, design, contrasts)
+ecoli_result = birta(EColiOxygen, nrep=c(0, 0, 3, 4), 
+genesets=EColiNetwork, limmamRNA=limmamRNA, 
+model="all-plug-in", niter=50000, nburnin=10000, 
+sample.weights=FALSE)
+@
+
+<<ecoli log-lik plot dummy, echo=TRUE, eval=FALSE, results=hide>>=
+plotConvergence(ecoli_result, nburnin=10000, title="E. Coli")
+@
+
+<<ecoli log-lik plot, echo=FALSE, results=hide>>=
+pdf("loglik_ecoli.pdf")
+plotConvergence(ecoli_result, nburnin=10000, title="E. Coli")
+dev.off()	
+@
+
+\begin{figure}[htp]
+  \centering
+\includegraphics[width=9cm]{loglik_ecoli.pdf}
+\caption{Log-likelihood during MCMC sampling for the E. Coli data set.}
+\label{figure2}
+\end{figure}
+
+The log-likelihood is shown in Figure \ref{figure2}. For active TFs, a cutoff of 0.9 is chosen. The total number of target genes is shown together with the number of differentially expressed target genes for the predicted active TFs:
+
+<<EColi active TFs, echo=TRUE>>=
+activeTFs = ecoli_result$TFActivitySwitch[ecoli_result$TFActivitySwitch > 0.9]
+sort(activeTFs)
+@
+
+<<ecoli DE genes, echo=TRUE>>=
+DEgenes = limmamRNA$pvalue.tab$ID[limmamRNA$pvalue.tab$adj.P.Val < 0.05]
+DEgenesInTargets = sapply(ecoli_result$genesetsTF[names(activeTFs)], 
+function(x) c(length(which(x %in% DEgenes)), length(x)))
+rownames(DEgenesInTargets) = c("#DEgenes", "#targets")
+DEgenesInTargets[,order(DEgenesInTargets["#targets",], decreasing=T)]
+@
+
+\subsubsection*{Using transcription factor expression}
+In accordance with recent findings \cite{Wu2011}, the default model of \Rpackage{birta} does not suppose that the mRNA expression levels of a TF and its (putative) target genes are generally correlated. However, assuming a correlation of TF expression and its targets might be correct in some cases. Thus, an extended model of \Rpackage{birta} allows to integrate TF expression of differentially expressed TFs into the model in a similar way as it models miRNA expression. \\
+\Robject{TFexpr} contains an excerpt of \Robject{EColiOxygen}, containing the mRNA expression for all 160 TFs in \Robject{EColiNetwork}. The row names of the expression matrix were converted to the corresponding TF identifiers in \Robject{EColiNetwork}.
+
+<<EColi TF expression, echo=TRUE>>=
+head(exprs(TFexpr))
+@
+
+\Rfunction{limmaAnalysis} is used to assess differential expression of these TFs. Both objects are then passed to \Rfunction{birta}, which automatically extracts differentially expressed TFs from the matrix using \Rfunarg{lfc.mRNA} and \Rfunarg{fdr.mRNA} as log fold change and p-value cutoff respectively. The expression of these selected TFs is then used in the model. Activities of non-differentially expressed TFs are modeled with the default model.
+
+<<EColi TFexpr, echo=TRUE, results=hide>>=
+limmaTF = limmaAnalysis(TFexpr, design, contrasts)
+ecoli_TFexpr = birta(EColiOxygen, nrep=c(0, 0, 3, 4), 
+genesets=EColiNetwork, TFexpr=TFexpr, limmaTF=limmaTF, 
+limmamRNA=limmamRNA, model="all-plug-in", niter=50000, 
+nburnin=10000, sample.weights=FALSE)
+@
+
+If the TF expression is considered - like for miRNAs - the TF is assumed to be active under the condition, where it is higher expressed. Therefore, it is possible to make a condition specific prediction for the activity of these TFs. For TFs, which are not differentially expressed, the prediction refers again to a switch in activity between both conditions. 
+
+<<EColi TFexpr result, echo=TRUE>>=
+sort(ecoli_TFexpr$TFstates1[ecoli_TFexpr$TFstates1 > 0.9])
+sort(ecoli_TFexpr$TFstates2[ecoli_TFexpr$TFstates2 > 0.9])
+sort(ecoli_TFexpr$TFActivitySwitch[ecoli_TFexpr$TFActivitySwitch > 0.9])
+@ 
+
+
+\section{Conclusion}
+\Rpackage{birta} integrates miRNA and mRNA data in a statistical framework (namely a Bayesian Network) to make inference on TF and miRNA activities in a condition specific way. It is a step towards the important goal to unravel causal mechanisms of gene expression changes under specific experimental or natural conditions. \\
+This vignette was generated using the following package versions:
+
+<<sessionInfo, echo=FALSE, results=tex>>=
+toLatex(sessionInfo())
+@
+
+
+\bibliographystyle{abbrv}
+\bibliography{bibliography}
+
+
+
+\end{document}
+
+

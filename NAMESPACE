@@ -1,0 +1,10 @@
+useDynLib(birta)
+
+
+export("birta", "get_potential_swaps", "limmaAnalysis", "plotConvergence")
+
+
+import(limma)
+import(MASS)
+
+
