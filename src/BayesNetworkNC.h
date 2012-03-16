@@ -45,7 +45,6 @@
 
 
 using namespace std;
-static void signal_handler(int sig);
 
 class BayesNetworkNC : public BayesNetwork
 {			

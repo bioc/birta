@@ -94,8 +94,8 @@ extern "C" {
 		}
 
 		int only_switches = INTEGER(sexponly_switches)[0];
-		list<int> *S_potential_swaps;
-		if(A_cnt > 0 & !only_switches) {
+		list<int> *S_potential_swaps = NULL;
+		if((A_cnt > 0) & (!only_switches)) {
 			S_potential_swaps = new list<int>[A_cnt];
 			for(i=0; i<A_cnt; i++) {
 				int curr_size = LENGTH(VECTOR_ELT(sexpS_potential_swaps, i));
@@ -107,8 +107,8 @@ extern "C" {
 			}
 		}
 
-		list<int> *T_potential_swaps;
-		if(T_cnt > 0 & !only_switches) {
+		list<int> *T_potential_swaps = NULL;
+		if((T_cnt > 0) & (!only_switches)) {
 			T_potential_swaps = new list<int>[T_cnt];
 			for(i=0; i<T_cnt; i++) {
 				int curr_size = LENGTH(VECTOR_ELT(sexpT_potential_swaps, i));
@@ -241,7 +241,7 @@ extern "C" {
 	}
 
 	int nTFexpr = INTEGER(sexpnTFexpr)[0];
-	double ***Otf;
+	double ***Otf = NULL;
 	double *alpha_i0TF = NULL;
 	double *alpha_iTF = NULL;
 	double *TF_sigma = NULL;
@@ -286,8 +286,8 @@ extern "C" {
 	}
       
 
-	list<int> *S2O;
-	list<int> *SparentsOfO;
+	list<int> *S2O = NULL;
+	list<int> *SparentsOfO = NULL;
 	if(A_cnt > 0) {
 		// Intialization of edges between miRNAs and genes
 		// Note that indices in R start at 1. Thus index-1 here
@@ -302,8 +302,8 @@ extern "C" {
 		}
 	}
 	
-	list<int> *T2O;
-	list<int> *TparentsOfO;
+	list<int> *T2O = NULL;
+	list<int> *TparentsOfO = NULL;
 	if(T_cnt > 0) {
 		// Intialization of edges between TFs and genes
 		T2O = new list<int>[T_cnt];
@@ -317,7 +317,7 @@ extern "C" {
 		}
 	}
 
-	double *O_sigma;
+	double *O_sigma = NULL;
 	if(mRNA_sigma != NULL) {
 		O_sigma = (double *) malloc(sizeof(double)*O_cnt);
 
@@ -363,11 +363,13 @@ extern "C" {
 	Rprintf("finished.\n");		  
 	
 // Create R output		
+
 	SEXP mirAct1, mirAct2, tfAct1, tfAct2, result, wnames, log_lik, tfweights, miRweights;
 	PROTECT(mirAct1 = NEW_NUMERIC(A_cnt));
 	PROTECT(mirAct2 = NEW_NUMERIC(A_cnt));
 	PROTECT(tfAct1 = NEW_NUMERIC(T_cnt));
 	PROTECT(tfAct2 = NEW_NUMERIC(T_cnt));
+
 	for(i=0; i<bn->getA_cnt(); i++) {
 	 	NUMERIC_POINTER(mirAct1)[i] = bn->getPostS()[0][i];
 	  	NUMERIC_POINTER(mirAct2)[i] = bn->getPostS()[1][i];
@@ -380,6 +382,7 @@ extern "C" {
 	for(i=0; i<niterations+burnin+1; i++) {
 		NUMERIC_POINTER(log_lik)[i] = log_lik_trace[i];
 	}
+
 	// store sampled weights in a list
 	//TFs
 	SEXP currWeights;
@@ -395,6 +398,7 @@ extern "C" {
 			//UNPROTECT(1);
 		}
 	}
+
 	//miRNAs:
 	PROTECT(miRweights = NEW_LIST(A_cnt));
 	if(A_cnt > 0) {
@@ -409,6 +413,7 @@ extern "C" {
 			//UNPROTECT(1);
 		}
 	}	
+
 	PROTECT(result = NEW_LIST(7));
 	PROTECT(wnames = NEW_CHARACTER(7));
 	SET_STRING_ELT(wnames, 0, mkChar("miRNAstates1"));
@@ -428,7 +433,9 @@ extern "C" {
 	SET_ELEMENT(result, 5, tfweights);
 	SET_ELEMENT(result, 6, miRweights);
 	UNPROTECT(8+T_cnt+A_cnt);
+
 	delete(bn);
+
       	return result;
   }
 
