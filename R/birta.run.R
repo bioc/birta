@@ -29,7 +29,7 @@
 # OUTPUT: see birta.start
 
 
-birtaRun = function(dat.mRNA, dat.miRNA, TFexpr, limmamRNA=NULL, limmamiRNA=NULL, limmaTF=NULL, nrep=NULL, fdr.mRNA=0.05, fdr.miRNA=0.05, lfc.mRNA=0, lfc.miRNA=0, genesets=NULL, lambda=NULL, sample.weights=TRUE, one.regulator.weight=TRUE, theta_TF=NULL, theta_miRNA=NULL, model=c("all-plug-in", "no-plug-in"), niter=500000, nburnin=100000, thin=50, potential_swaps=NULL, run.pretest=FALSE, condition.specific.inference=TRUE, only_switches=FALSE, weightSampleMean=0, weightSampleVariance=0.01) {
+birtaRun = function(dat.mRNA, dat.miRNA, TFexpr, limmamRNA=NULL, limmamiRNA=NULL, limmaTF=NULL, nrep=NULL, fdr.mRNA=0.05, fdr.miRNA=0.05, lfc.mRNA=0, lfc.miRNA=0, genesets=NULL, lambda=NULL, sample.weights=TRUE, one.regulator.weight=TRUE, theta_TF=NULL, theta_miRNA=NULL, model=c("all-plug-in", "no-plug-in"), niter=500000, nburnin=100000, thin=50, potential_swaps=NULL, run.pretest=FALSE, condition.specific.inference=TRUE, only_switches=FALSE, weightSampleMean=0, weightSampleVariance=0.001, accessible=NULL) {
 
 
 	if(is.null(nrep)) {
@@ -59,10 +59,6 @@ birtaRun = function(dat.mRNA, dat.miRNA, TFexpr, limmamRNA=NULL, limmamiRNA=NULL
 		stop("Do you want to infer miRNA activities? Ambivalent definition of dat.miRNA and limmamiRNA (one is a NULL).")
 	}
 
-	if(is.null(TFexpr) & (!is.null(limmaTF)) | (!is.null(TFexpr)) & (is.null(limmaTF))) {
-		stop("Do you want to infer TF activities together with their expression vaules? Ambivalent definition of TFexpr and limmaTF (one is a NULL).")
-	}
-
 	if(class(genesets) != "list")
 		stop("genesets must be a list!")
 	
@@ -81,15 +77,12 @@ birtaRun = function(dat.mRNA, dat.miRNA, TFexpr, limmamRNA=NULL, limmamiRNA=NULL
 		}
 	}
 
-	
-
 	model = match.arg(model, several.ok=FALSE)				
 	
 	genesetsTFs = NULL
 	if("TF" %in% names(genesets)) {
 		genesetsTFs = genesets$TF
 	}
-
 	genesetsmiRNA = NULL
 	if("miRNA" %in% names(genesets)){
 		genesetsmiRNA = genesets$miRNA	
@@ -121,10 +114,10 @@ birtaRun = function(dat.mRNA, dat.miRNA, TFexpr, limmamRNA=NULL, limmamiRNA=NULL
 			warning("No overlap between TF-targets and mRNA measurements!")
 
 		genesetsTFs = genesetsTFs[sapply(genesetsTFs, function(s) (length(s) > 0))]
-		if(any(sapply(genesetsTFs, length) == 0)){
-			warning("Not all TF genesets have non-zero length --> removing TFs empty genesets (see genesetsTF in result).")
-			genesetsTFs = genesetsTFs[sapply(genesetsTFs, length) > 0]
-		}
+		#if(any(sapply(genesetsTFs, length) == 0)){ # Das kann nie passieren auf Grund des vorherigen Kommandos
+		#	warning("Not all TF genesets have non-zero length --> removing TFs empty genesets (see genesetsTFs in result).")
+		#	genesetsTFs = genesetsTFs[sapply(genesetsTFs, length) > 0]
+		#}
 	}
 
 	ctrl1 = setdiff(unlist(genesetsTFs), rownames(dat.mRNA))
@@ -148,11 +141,7 @@ birtaRun = function(dat.mRNA, dat.miRNA, TFexpr, limmamRNA=NULL, limmamiRNA=NULL
 		parentmiR = names(which(sapply(genesetsmiRNA, function(g) any(diff.genes %in% g))))
 	else
 		parentmiR = c()
-      
-	if(length(diff.genes) == 0) 
-		stop("No differentially expressed genes. Cannot initialize appropriate edge weights. Adjust your p-value (fdr.mRNA) and fold change (lfc.mRNA) cutoffs!")
-
-	cat(length(diff.genes), " DE gene(s) have ", length(parentTFs), "regulating TFs and ", length(parentmiR), "regulating miRNAs\n")	
+	cat(length(diff.genes), " DE gene(s) have ", length(parentTFs), "regulating TFs and ", length(parentmiR), "regulating miRNAs\n") # NOTE: birta should also work without DE genes	
 	# choose sensible initialization of states to improve convergence	
 	if(run.pretest & length(diff.genes) > 0){
 		init_miR = matrix(0, nrow=2, ncol=length(genesetsmiRNA))
@@ -173,28 +162,30 @@ birtaRun = function(dat.mRNA, dat.miRNA, TFexpr, limmamRNA=NULL, limmamiRNA=NULL
 			stop("Limma contrasts for mRNA and miRNA expressions differ!\n")
 		}
 		limmamiRNA$pvalue.tab = limmamiRNA$pvalue.tab[limmamiRNA$pvalue.tab$ID %in% rownames(dat.miRNA),]
-		diff_miRNAs = limmamiRNA$pvalue.tab$ID[((limmamiRNA$pvalue.tab$logFC > lfc.miRNA) & (limmamiRNA$pvalue.tab$adj.P.Val < fdr.miRNA)) | ((limmamiRNA$pvalue.tab$logFC < -lfc.miRNA) & (limmamiRNA$pvalue.tab$adj.P.Val < fdr.miRNA))]
-		
-		if(length(diff_miRNAs) == 0) 
-			stop("No differentially expressed miRNAs. Cannot initialize appropriate alpha. Adjust your p-value (fdr.miRNA) and fold change (lfc.miRNA) cutoffs!")
-		
-		alpha_i0 = apply(as.matrix(dat.miRNA[,1:nrep[1], drop=F]), 1, function(x) mean(x, na.rm=TRUE)) 
-		names(alpha_i0) = rownames(dat.miRNA)
-		
-		medianmiRNAlogFC = median(abs(limmamiRNA$pvalue.tab$logFC[match(diff_miRNAs, limmamiRNA$pvalue.tab$ID)]), na.rm=TRUE)
-		alpha_i = rep(medianmiRNAlogFC, nrow(dat.miRNA)) # alpha_i is the expected logFC, if miRNA is activated ==> should be POSITIVE (<- not if c1 is always reference condition => if active in 1 then )
-		alpha_i1 = apply(as.matrix(dat.miRNA[,(nrep[1]+1):(nrep[1]+nrep[2]), drop=F]), 1, function(x) mean(x, na.rm=TRUE)) 
-		alpha_i[which(alpha_i1-alpha_i0 < 0)] = -medianmiRNAlogFC
-		
+		diff_miRNA.up = limmamiRNA$pvalue.tab$ID[(limmamiRNA$pvalue.tab$logFC > lfc.miRNA) & limmamiRNA$pvalue.tab$adj.P.Val < fdr.miRNA]
+		diff_miRNA.down = limmamiRNA$pvalue.tab$ID[(limmamiRNA$pvalue.tab$logFC < -lfc.miRNA) & limmamiRNA$pvalue.tab$adj.P.Val < fdr.miRNA]
+		alpha_i0 = apply(dat.miRNA[,1:nrep[1], drop=F], 1, mean, na.rm=TRUE) # average expression in first condition
+		names(alpha_i0) = rownames(dat.miRNA)		
+		if(length(diff_miRNA.up) > 0)
+			alpha_i = rep(median(limmamiRNA$pvalue.tab$logFC[match(diff_miRNA.up, limmamiRNA$pvalue.tab$ID)], na.rm=TRUE), nrow(dat.miRNA)) # alpha_i is the expected logFC, if miRNA is activated relative to reference ==> should be POSITIVE in case we operate with differential gene expression only (only states for 1 condition to infer) 
+		else
+			alpha_i = rep(1, nrow(dat.miRNA))	
 		names(alpha_i) = rownames(dat.miRNA)
-		which.down = limmamiRNA$pvalue.tab$ID[(limmamiRNA$pvalue.tab$logFC) < 0]
-
-		var.miRNA = limmamiRNA$lm.fit$s2.post[rownames(dat.miRNA)]		
-		var.varmiRNA = var(var.miRNA, na.rm=TRUE)
+		if(condition.specific.inference){  # in case we use both condictions separately, alpha_i can also be negative			
+			which.down = limmamiRNA$pvalue.tab$ID[(limmamiRNA$pvalue.tab$logFC) < 0]
+			if(length(which.down) > 0){			
+				if(length(diff_miRNA.down) > 0)
+					alpha_i[which.down] = rep(median(limmamiRNA$pvalue.tab$logFC[match(diff_miRNA.down, limmamiRNA$pvalue.tab$ID)], na.rm=TRUE), length(which.down))
+				else
+					alpha_i[which.down] = rep(-1, length(which.down))
+			}
+		}
+		var.miRNA = limmamiRNA$lm.fit$s2.post		
+		var.varmiRNA = var(var.miRNA)
 		A_Sigma = sqrt(var.miRNA)		
 		names(A_Sigma) = rownames(dat.miRNA)
 		if(any(is.na(A_Sigma)))
-			stop("Variance of miRNA expressions must not equal NA! Re-do limmaAnalysis!")
+			stop("Variance of miRNA expressions must not equal NA! Re-do limmaAnalysis!")		
 	}
 	else {
 		alpha_i0 = alpha_i = var.miRNA = var.varmiRNA = A_Sigma = NULL
@@ -209,47 +200,37 @@ birtaRun = function(dat.mRNA, dat.miRNA, TFexpr, limmamRNA=NULL, limmamiRNA=NULL
 	avg.var = mean(c(var.mRNA, var.miRNA), na.rm=TRUE)
 	var.var = max(c(var(var.mRNA), var.varmiRNA), na.rm=TRUE)
 	if(var.var == 0) {
-		var.var = 0.1
+		var.var = 0.001
 	}
 	beta = var.var / (avg.var+1e-6)
-
 	alpha = 1 + avg.var / (beta)
-	
-				
-	if(!condition.specific.inference)
+					
+	if(!condition.specific.inference){
 		b.mRNA = rowMeans(as.matrix(dat.mRNA[,1:nrep[3]]), na.rm=TRUE)
-	else{		
-		b.mRNA = rowMeans(as.matrix(dat.mRNA[,1:nrep[3]]), na.rm=TRUE)
+		names(b.mRNA) = rownames(dat.mRNA)
 	}
-	names(b.mRNA) = rownames(dat.mRNA)
+	else{		
+		b.mRNA =  c(mean(apply(dat.mRNA[,1:nrep[3]], 2, median)), mean(apply(dat.mRNA[,(nrep[3] + 1):NCOL(dat.mRNA)], 2, median)))
+	}	
 	# initialize omegas for miRNAs and TFs with sensible values to speed up convergence	
-	meandown = min(c(median(limmamRNA$pvalue.tab$logFC[limmamRNA$pvalue.tab$logFC < -lfc.mRNA & limmamRNA$pvalue.tab$adj.P.Val < fdr.mRNA], na.rm=TRUE), -1), na.rm=T)
-	meanup = max(c(median(limmamRNA$pvalue.tab$logFC[limmamRNA$pvalue.tab$logFC > lfc.mRNA &  limmamRNA$pvalue.tab$adj.P.Val < fdr.mRNA], na.rm=TRUE), 1), na.rm=T)
-	cdiff = limmamRNA$pvalue.tab$logFC
-	names(cdiff) = limmamRNA$pvalue.tab$ID
+	meandown = max(c(median(limmamRNA$pvalue.tab$logFC[limmamRNA$pvalue.tab$logFC < -lfc.mRNA & limmamRNA$pvalue.tab$adj.P.Val < fdr.mRNA], na.rm=TRUE), -1), na.rm=T)
+	meanup = min(c(median(limmamRNA$pvalue.tab$logFC[limmamRNA$pvalue.tab$logFC > lfc.mRNA &  limmamRNA$pvalue.tab$adj.P.Val < fdr.mRNA], na.rm=TRUE), 1), na.rm=T)	
+	
 	
 	omegamiRNA = list()	
-	b2.mRNA = rowMeans(as.matrix(dat.mRNA[,(nrep[3]+1):(nrep[3]+nrep[4])]), na.rm=TRUE)
-	names(b2.mRNA) = rownames(dat.mRNA)
 	for(i in names(genesetsmiRNA)) { # miRNA
-		active_cond = FALSE
-		if(! is.null(alpha_i)) {
-			active_cond = (alpha_i[i] < 0)
-		}
-		else {
-			acitve_cond = (mean(b.mRNA[genesetsmiRNA[[i]]], na.rm=T) < mean(b2.mRNA[genesetsmiRNA[[i]]], na.rm=T))
-		}
-		if(active_cond) { # active in reference condition => mRNAs go up in second condition
-			diff.targets = intersect(genesetsmiRNA[[i]], diff_mRNA.up)#diff_mRNA.down
+		# NOTE: effect of miRNAs should be always inhibitory on mRNA expression level ==> NEGATIVE edge weights (has nothing to do with reference condition)
+		if(limmamiRNA$pvalue.tab$logFC[match(i, limmamiRNA$pvalue.tab$ID)] < 0) { # miRNA is downregulated => mRNAs go up 
+			diff.targets = intersect(genesetsmiRNA[[i]], diff_mRNA.up)
 			if(length(diff.targets) > 0) {
-				omegamiRNA[[i]] = rep(median(limmamRNA$pvalue.tab$logFC[match(diff.targets, limmamRNA$pvalue.tab$ID)], na.rm=TRUE), length(genesetsmiRNA[[i]]))
+				omegamiRNA[[i]] = rep(-median(limmamRNA$pvalue.tab$logFC[match(diff.targets, limmamRNA$pvalue.tab$ID)], na.rm=TRUE), length(genesetsmiRNA[[i]])) 
 			}
 			else {
-				omegamiRNA[[i]] = rep(-meandown,  length(genesetsmiRNA[[i]]))				
+				omegamiRNA[[i]] = rep(meandown,  length(genesetsmiRNA[[i]]))				
 			}
 		}
-		else {  # inactive in reference condition => mRNAs go down in second condition
-			diff.targets = intersect(genesetsmiRNA[[i]], diff_mRNA.down)#diff_mRNA.down
+		else {  # miRNA is upregulated => mRNAs go down 
+			diff.targets = intersect(genesetsmiRNA[[i]], diff_mRNA.down)
 			if(length(diff.targets) > 0) {
 				omegamiRNA[[i]] = rep(median(limmamRNA$pvalue.tab$logFC[match(diff.targets, limmamRNA$pvalue.tab$ID)], na.rm=TRUE), length(genesetsmiRNA[[i]]))
 			}
@@ -258,124 +239,115 @@ birtaRun = function(dat.mRNA, dat.miRNA, TFexpr, limmamRNA=NULL, limmamiRNA=NULL
 			}
 		}
 		names(omegamiRNA[[i]]) = genesetsmiRNA[[i]]
-
 	}
 	names(omegamiRNA) = names(genesetsmiRNA)
 
 	omegaTF = list()	
 	for(i in names(genesetsTFs)) { # TF
-		#omegaTF[[i]] = rep()
-		diff.targets = intersect(genesetsTFs[[i]], diff_mRNA.up)
-		if(length(diff.targets) > 0)
-			omegaTF[[i]] = rep(median(limmamRNA$pvalue.tab$logFC[match(diff.targets, limmamRNA$pvalue.tab$ID)], na.rm=TRUE), length(genesetsTFs[[i]]))  	
-		else
-			omegaTF[[i]] =  rep(meanup, length(genesetsTFs[[i]]))
-
+		# NOTE: TFs should lead to an up-regulation of target genes ==> POSITIVE weights (has nothing to do with reference condition)
+		if((!is.null(TFexpr) && (i %in% rownames(TFexpr))) && limmaTF$pvalue.tab$logFC[match(i, limmaTF$pvalue.tab$ID)] < 0){ # # in this case we can make a similar reasoning than for miRNAs: TF is down => mRNAs go down 
+			diff.targets = intersect(genesetsTFs[[i]], diff_mRNA.down)
+			if(length(diff.targets) > 0) {
+				omegaTF[[i]] = rep(-median(limmamRNA$pvalue.tab$logFC[match(diff.targets, limmamRNA$pvalue.tab$ID)], na.rm=TRUE), length(genesetsTFs[[i]])) 
+			}
+			else {
+				omegaTF[[i]] = rep(-meandown,  length(genesetsTFs[[i]]))				
+			}				
+		}
+		else{
+			diff.targets = intersect(genesetsTFs[[i]], diff_mRNA.up) 
+			if(length(diff.targets) > 0)
+				omegaTF[[i]] = rep(median(limmamRNA$pvalue.tab$logFC[match(diff.targets, limmamRNA$pvalue.tab$ID)], na.rm=TRUE), length(genesetsTFs[[i]]))  	
+			else
+				omegaTF[[i]] =  rep(meanup, length(genesetsTFs[[i]]))				
+		}
 		names(omegaTF[[i]]) = genesetsTFs[[i]]
-		
-		diff.targets = intersect(genesetsTFs[[i]], diff_mRNA.down)
-		if(length(diff.targets) > 0)
-			omegaTF[[i]][cdiff[names(omegaTF[[i]])] < 0] = rep(median(limmamRNA$pvalue.tab$logFC[match(diff.targets, limmamRNA$pvalue.tab$ID)], na.rm=TRUE), length(which(cdiff[names(omegaTF[[i]])] < 0)))
-		else
-			omegaTF[[i]][which(cdiff[names(omegaTF[[i]])] < 0)] = rep(meandown,  length(which(cdiff[names(omegaTF[[i]])] < 0)))
-		
-		names(omegaTF[[i]]) = genesetsTFs[[i]]
-		#omegaTF[[i]][cdiff < 0] = -omegaTF[[i]][cdiff < 0]
-		
+			
+		#diff.targets = intersect(genesetsTFs[[i]], diff_mRNA.down)
+		#if(length(diff.targets) > 0)
+	#		omegaTF[[i]][cdiff[names(omegaTF[[i]])] < 0] = rep(median(limmamRNA$pvalue.tab$logFC[match(diff.targets, limmamRNA$pvalue.tab$ID)], na.rm=TRUE), length(which(cdiff[names(omegaTF[[i]])] < 0)))
+	#	else
+	#		omegaTF[[i]][which(cdiff[names(omegaTF[[i]])] < 0)] = rep(meandown,  length(which(cdiff[names(omegaTF[[i]])] < 0)))
+	#	
+	#	names(omegaTF[[i]]) = genesetsTFs[[i]]
+		#omegaTF[[i]][cdiff < 0] = -omegaTF[[i]][cdiff < 0]		
 	}
-
 	names(omegaTF) = names(genesetsTFs)
-
+	
 	
 	alpha_i0TF = NULL
 	alpha_iTF = NULL
 	TF_Sigma = NULL
 	alphaTF = NULL
 	betaTF = NULL
-	if(!is.null(TFexpr) & !is.null(limmaTF)) {	
-
-		group1 = as.vector(which(limmaTF$design[,1] == 1))
-		group2 = as.vector(which(limmaTF$design[,2] == 1))
-		TFexpr = TFexpr[,c(group1, group2)]
-		if((length(group1) != nrep[3]) | (length(group2) != nrep[4])) stop("#replicates differ for TF and mRNA expression!")
-			
-		TFsInmiRNAmodel = NULL
+	if(!is.null(TFexpr)) {					
+		if(is.null(nrep)){
+			group1 = as.vector(which(limmaTF$design[,1] == 1))
+			group2 = as.vector(which(limmaTF$design[,2] == 1))
+			TFexpr = TFexpr[,c(group1, group2)]
+		}		
 		TFinvalid = apply(TFexpr, 1, function(x) {(all(is.na(x[1:nrep[3]]))  | all(is.na(x[(nrep[3]+1):(nrep[3]+nrep[4])])))})
 		if(length(which(TFinvalid)) > 0) {
 			warning("Removing ", length(which(TFinvalid)), " TFs from TF expression matrix (all measurements of at least one condition equal NA).")
 			TFexpr = TFexpr[(! TFinvalid),]
 		}
-	
 		
 		TFsInAnnotation = rownames(TFexpr)[which((rownames(TFexpr) %in% names(genesetsTFs)))]
-		TFexpr = TFexpr[TFsInAnnotation,]
-		limmaTF$pvalue.tab = limmaTF$pvalue.tab[limmaTF$pvalue.tab$ID %in% rownames(TFexpr),]
+		TFexpr = TFexpr[TFsInAnnotation,]		
 		diff_TFs = limmaTF$pvalue.tab$ID[(((limmaTF$pvalue.tab$logFC > lfc.mRNA) & (limmaTF$pvalue.tab$adj.P.Val < fdr.mRNA)) | ((limmaTF$pvalue.tab$logFC < -lfc.mRNA) & (limmaTF$pvalue.tab$adj.P.Val < fdr.mRNA)))]
-
-		TFexpr = TFexpr[diff_TFs,]
-
-		 
-
+		diff_TF.down = limmaTF$pvalue.tab$ID[limmaTF$pvalue.tab$logFC < -lfc.mRNA & limmaTF$pvalue.tab$adj.P.Val < fdr.mRNA]
+		diff_TF.up = limmaTF$pvalue.tab$ID[limmaTF$pvalue.tab$logFC > lfc.mRNA & limmaTF$pvalue.tab$adj.P.Val < fdr.mRNA]
 		
-		if(length(diff_TFs) == 0) 
-			stop("No differentially expressed TFs. Cannot initialize appropriate alpha. Adjust your p-value (fdr.mRNA) and fold change (lfc.mRNA) cutoffs!")
-
+		TFexpr = TFexpr[as.character(diff_TFs),]		
 		if(length(TFsInAnnotation) > 0) {
 			cat("Using ", length(diff_TFs), "DE TFs together with their expression level for condition specific model.\n")
 			
 			alpha_i0TF = apply(as.matrix(TFexpr[,1:nrep[1], drop=F]), 1, function(x) mean(x, na.rm=TRUE)) 
-			names(alpha_i0TF) = rownames(TFexpr)
-			
-			medianTFlogFC = median(abs(limmaTF$pvalue.tab$logFC[match(diff_TFs, limmaTF$pvalue.tab$ID)]), na.rm=TRUE)
-			alpha_iTF = rep(medianTFlogFC, nrow(TFexpr)) # alpha_i is the expected logFC, if TF is activated ==> should be POSITIVE (<- not if c1 is always reference condition => if active in 1 then )
-			alpha_i1TF = apply(as.matrix(TFexpr[,(nrep[3]+1):(nrep[4]+nrep[2]), drop=F]), 1, function(x) mean(x, na.rm=TRUE)) 
-			alpha_iTF[which(alpha_i1TF-alpha_i0TF < 0)] = -medianTFlogFC
-			#else
-			#	alpha_i = rep(1, nrow(dat.TF))
+			names(alpha_i0TF) = rownames(TFexpr)		
+			if(length(diff_TF.up) > 0)
+				alpha_iTF = rep(median(limmaTF$pvalue.tab$logFC[match(diff_TF.up, limmaTF$pvalue.tab$ID)], na.rm=TRUE), nrow(TFexpr)) # alpha_iTF is the expected logFC, if TF is activated relative to reference ==> should be POSITIVE in case we operate with differential gene expression only (only states for 1 condition to infer) 
+			else
+				alpha_iTF = rep(1, nrow(TFexpr))			
 			names(alpha_iTF) = rownames(TFexpr)
-			which.down = limmaTF$pvalue.tab$ID[(limmaTF$pvalue.tab$logFC) < 0]
+			if(condition.specific.inference){ # in case we use both condictions separately, alpha_iTF can also be negative 
+				which.down = limmaTF$pvalue.tab$ID[(limmaTF$pvalue.tab$logFC) < 0]
+				if(length(which.down) > 0){			
+					if(length(diff_TF.down) > 0)
+						alpha_iTF[which.down] = rep(median(limmaTF$pvalue.tab$logFC[match(diff_TF.down, limmaTF$pvalue.tab$ID)], na.rm=TRUE), length(which.down))
+					else
+						alpha_iTF[which.down] = rep(-1, length(which.down))
+				}
+			}			
+			#medianTFlogFC = median(abs(limmaTF$pvalue.tab$logFC[match(diff_TFs, limmaTF$pvalue.tab$ID)]), na.rm=TRUE)
+			#alpha_iTF = rep(medianTFlogFC, nrow(TFexpr)) # alpha_i is the expected logFC, if TF is activated 
+			#alpha_i1TF = apply(as.matrix(TFexpr[,(nrep[3]+1):(nrep[4]+nrep[2]), drop=F]), 1, function(x) mean(x, na.rm=TRUE)) 
+			#alpha_iTF[which(alpha_i1TF-alpha_i0TF < 0)] = -medianTFlogFC						
+			#which.down = limmaTF$pvalue.tab$ID[(limmaTF$pvalue.tab$logFC) < 0]
 			var.TF = limmaTF$lm.fit$s2.post[rownames(TFexpr)]		
 			var.varTF = var(var.TF, na.rm=TRUE)
 			TF_Sigma = sqrt(var.TF)		
 			names(TF_Sigma) = rownames(TFexpr)
 			if(any(is.na(TF_Sigma)))
 				stop("Variance of TF expressions must not equal NA! Re-do limmaAnalysis!")
-
-
 			avg.var.TF = mean(c(var.TF, var.TF), na.rm=TRUE)
 			var.var.TF = max(c(var(var.TF), var.varTF), na.rm=TRUE)
 			if(var.var.TF == 0) {
-				var.var.TF = 0.1
+				var.var.TF = 0.001
 			}
-			betaTF = var.var.TF / (avg.var.TF+1e-6)
-		#beta = 1
-			alphaTF = 1 + avg.var.TF / (betaTF)
-#
-			if(any(limmamRNA$lm.fit$contrasts != limmaTF$lm.fit$contrasts)) {
-				stop("Limma contrasts for mRNA and TF expressions differ!\n")
-			}
+			betaTF = var.var.TF / (avg.var.TF+1e-6)	
+			alphaTF = 1 + avg.var.TF / (betaTF)			
 		}
 		else {
 			warning("Cannot use TF expression for the model. Annotation does not match!")
 			TFexpr = NULL
-			limmaTF = NULL
 		}
 	}
-	
-
 							
 	#
 	if(is.null(theta_TF) & length(genesetsTFs) > 0)
 		theta_TF =  0.5*length(parentTFs)/length(genesetsTFs)
-	else
-		theta_TF = 0
-	#if(length(genesetsTFs) == 0)
-	#	theta_TF = 0.05
-
 	if(is.null(theta_miRNA) & length(genesetsmiRNA) > 0)
 		theta_miRNA = 0.5*length(parentmiR)/length(genesetsmiRNA)
-	else
-		theta_miRNA = 0
 	#	
 	if(sample.weights){
 		if(is.null(lambda)){
@@ -412,7 +384,7 @@ birtaRun = function(dat.mRNA, dat.miRNA, TFexpr, limmamRNA=NULL, limmamiRNA=NULL
 			replicates=nrep, niter=niter, burnin=nburnin, thin=thin, model=model, 
 			only_switches=only_switches, nomiRNA=is.null(genesetsmiRNA), noTF=is.null(genesetsTFs), omega_miRNA=omegamiRNA, omega_TF=omegaTF, potential_swaps=potential_swaps, 
 			theta_TF=theta_TF, theta_miRNA=theta_miRNA, weightSampleMean=weightSampleMean, weightSampleVariance=weightSampleVariance, weight_samples_per_move=weight_samples_per_move, equal.regulator.weights=one.regulator.weight,
-			A_sigma=A_Sigma, O_sigma=O_Sigma, lambda_omega=mylambda, init_S = init_miR, init_T = init_TF, condition.specific.inference=condition.specific.inference, TFexpr=TFexpr, alpha_i0TF=alpha_i0TF, alpha_iTF=alpha_iTF, TF_sigma=TF_Sigma, alphaTF=alphaTF, betaTF=betaTF)	
+			A_sigma=A_Sigma, O_sigma=O_Sigma, lambda_omega=mylambda, init_S = init_miR, init_T = init_TF, condition.specific.inference=condition.specific.inference, TFexpr=TFexpr, alpha_i0TF=alpha_i0TF, alpha_iTF=alpha_iTF, TF_sigma=TF_Sigma, alphaTF=alphaTF, betaTF=betaTF, accessible=accessible)	
 	
 	res
 }
@@ -420,62 +392,60 @@ birtaRun = function(dat.mRNA, dat.miRNA, TFexpr, limmamRNA=NULL, limmamiRNA=NULL
 
 
 
-setGeneric("birta", signature = c("dat.mRNA", "dat.miRNA", "TFexpr"), function(dat.mRNA, dat.miRNA, TFexpr, limmamRNA=NULL, limmamiRNA=NULL, limmaTF=NULL, nrep=NULL, fdr.mRNA=0.05, fdr.miRNA=0.05, lfc.mRNA=0, lfc.miRNA=0, genesets=NULL, lambda=NULL, sample.weights=TRUE, one.regulator.weight=TRUE, theta_TF=NULL, theta_miRNA=NULL, model=c("all-plug-in", "no-plug-in"), niter=500000, nburnin=100000, thin=50, potential_swaps=NULL, run.pretest=FALSE, condition.specific.inference=TRUE, only_switches=FALSE, weightSampleMean=0, weightSampleVariance=0.01)
+setGeneric("birta", signature = c("dat.mRNA", "dat.miRNA", "TFexpr"), function(dat.mRNA, dat.miRNA, TFexpr, limmamRNA=NULL, limmamiRNA=NULL, limmaTF=NULL, nrep=NULL, fdr.mRNA=0.05, fdr.miRNA=0.05, lfc.mRNA=0, lfc.miRNA=0, genesets=NULL, lambda=NULL, sample.weights=TRUE, one.regulator.weight=TRUE, theta_TF=NULL, theta_miRNA=NULL, model=c("all-plug-in", "no-plug-in"), niter=500000, nburnin=100000, thin=50, potential_swaps=NULL, run.pretest=FALSE, condition.specific.inference=TRUE, only_switches=FALSE, weightSampleMean=0, weightSampleVariance=0.001, accessible=NULL)
 	 standardGeneric("birta"))
 
 
-
-
 setMethod("birta",  c("dat.mRNA"="ExpressionSet", "dat.miRNA" = "ExpressionSet", "TFexpr"="ExpressionSet"),
-    function(dat.mRNA, dat.miRNA, TFexpr, limmamRNA=NULL, limmamiRNA=NULL, limmaTF=NULL, nrep=NULL, fdr.mRNA=0.05, fdr.miRNA=0.05, lfc.mRNA=0, lfc.miRNA=0, genesets=NULL, lambda=NULL, sample.weights=TRUE, one.regulator.weight=TRUE, theta_TF=NULL, theta_miRNA=NULL, model=c("all-plug-in", "no-plug-in"), niter=500000, nburnin=100000, thin=50, potential_swaps=NULL, run.pretest=FALSE, condition.specific.inference=TRUE, only_switches=FALSE, weightSampleMean=0, weightSampleVariance=0.01) {
+    function(dat.mRNA, dat.miRNA, TFexpr, limmamRNA=NULL, limmamiRNA=NULL, limmaTF=NULL, nrep=NULL, fdr.mRNA=0.05, fdr.miRNA=0.05, lfc.mRNA=0, lfc.miRNA=0, genesets=NULL, lambda=NULL, sample.weights=TRUE, one.regulator.weight=TRUE, theta_TF=NULL, theta_miRNA=NULL, model=c("all-plug-in", "no-plug-in"), niter=500000, nburnin=100000, thin=50, potential_swaps=NULL, run.pretest=FALSE, condition.specific.inference=TRUE, only_switches=FALSE, weightSampleMean=0, weightSampleVariance=0.001, accessible=NULL) {
     mRNA <- exprs(dat.mRNA)
     miRNA <- exprs(dat.miRNA)
     TF <- exprs(TFexpr)
-    callGeneric(dat.mRNA=mRNA, dat.miRNA=miRNA, TFexpr=TF, limmamRNA=limmamRNA, limmamiRNA=limmamiRNA, limmaTF=limmaTF, nrep=nrep, fdr.mRNA=fdr.mRNA, fdr.miRNA=fdr.miRNA, lfc.mRNA=lfc.mRNA, lfc.miRNA=lfc.miRNA, genesets=genesets, lambda=lambda, sample.weights=sample.weights, one.regulator.weight=one.regulator.weight, theta_TF=theta_TF, theta_miRNA=theta_miRNA, model=model, niter=niter, nburnin=nburnin, thin=thin, potential_swaps=potential_swaps, run.pretest=run.pretest, condition.specific.inference=condition.specific.inference, only_switches=only_switches, weightSampleMean=weightSampleMean, weightSampleVariance=weightSampleVariance)
+    callGeneric(dat.mRNA=mRNA, dat.miRNA=miRNA, TFexpr=TF, limmamRNA=limmamRNA, limmamiRNA=limmamiRNA, limmaTF=limmaTF, nrep=nrep, fdr.mRNA=fdr.mRNA, fdr.miRNA=fdr.miRNA, lfc.mRNA=lfc.mRNA, lfc.miRNA=lfc.miRNA, genesets=genesets, lambda=lambda, sample.weights=sample.weights, one.regulator.weight=one.regulator.weight, theta_TF=theta_TF, theta_miRNA=theta_miRNA, model=model, niter=niter, nburnin=nburnin, thin=thin, potential_swaps=potential_swaps, run.pretest=run.pretest, condition.specific.inference=condition.specific.inference, only_switches=only_switches, weightSampleMean=weightSampleMean, weightSampleVariance=weightSampleVariance, accessible=accessible)
 })
 
 
 setMethod("birta",  c("dat.mRNA"="ExpressionSet", "dat.miRNA" = "ExpressionSet", "TFexpr"="missing"),
-    function(dat.mRNA, dat.miRNA, TFexpr, limmamRNA=NULL, limmamiRNA=NULL, limmaTF=NULL, nrep=NULL, fdr.mRNA=0.05, fdr.miRNA=0.05, lfc.mRNA=0, lfc.miRNA=0, genesets=NULL, lambda=NULL, sample.weights=TRUE, one.regulator.weight=TRUE, theta_TF=NULL, theta_miRNA=NULL, model=c("all-plug-in", "no-plug-in"), niter=500000, nburnin=100000, thin=50, potential_swaps=NULL, run.pretest=FALSE, condition.specific.inference=TRUE, only_switches=FALSE, weightSampleMean=0, weightSampleVariance=0.01) {
+    function(dat.mRNA, dat.miRNA, TFexpr, limmamRNA=NULL, limmamiRNA=NULL, limmaTF=NULL, nrep=NULL, fdr.mRNA=0.05, fdr.miRNA=0.05, lfc.mRNA=0, lfc.miRNA=0, genesets=NULL, lambda=NULL, sample.weights=TRUE, one.regulator.weight=TRUE, theta_TF=NULL, theta_miRNA=NULL, model=c("all-plug-in", "no-plug-in"), niter=500000, nburnin=100000, thin=50, potential_swaps=NULL, run.pretest=FALSE, condition.specific.inference=TRUE, only_switches=FALSE, weightSampleMean=0, weightSampleVariance=0.001, accessible=NULL) {
     mRNA <- exprs(dat.mRNA)
     miRNA <- exprs(dat.miRNA)
-    callGeneric(dat.mRNA=mRNA, dat.miRNA=miRNA, limmamRNA=limmamRNA, limmamiRNA=limmamiRNA, limmaTF=limmaTF, nrep=nrep, fdr.mRNA=fdr.mRNA, fdr.miRNA=fdr.miRNA, lfc.mRNA=lfc.mRNA, lfc.miRNA=lfc.miRNA, genesets=genesets, lambda=lambda, sample.weights=sample.weights, one.regulator.weight=one.regulator.weight, theta_TF=theta_TF, theta_miRNA=theta_miRNA, model=model, niter=niter, nburnin=nburnin, thin=thin, potential_swaps=potential_swaps, run.pretest=run.pretest, condition.specific.inference=condition.specific.inference, only_switches=only_switches, weightSampleMean=weightSampleMean, weightSampleVariance=weightSampleVariance)
+    callGeneric(dat.mRNA=mRNA, dat.miRNA=miRNA, limmamRNA=limmamRNA, limmamiRNA=limmamiRNA, limmaTF=limmaTF, nrep=nrep, fdr.mRNA=fdr.mRNA, fdr.miRNA=fdr.miRNA, lfc.mRNA=lfc.mRNA, lfc.miRNA=lfc.miRNA, genesets=genesets, lambda=lambda, sample.weights=sample.weights, one.regulator.weight=one.regulator.weight, theta_TF=theta_TF, theta_miRNA=theta_miRNA, model=model, niter=niter, nburnin=nburnin, thin=thin, potential_swaps=potential_swaps, run.pretest=run.pretest, condition.specific.inference=condition.specific.inference, only_switches=only_switches, weightSampleMean=weightSampleMean, weightSampleVariance=weightSampleVariance, accessible=accessible)
 })
 
 setMethod("birta",  c("dat.mRNA"="ExpressionSet", "dat.miRNA" = "missing", "TFexpr"="ExpressionSet"),
-    function(dat.mRNA, dat.miRNA, TFexpr, limmamRNA=NULL, limmamiRNA=NULL, limmaTF=NULL, nrep=NULL, fdr.mRNA=0.05, fdr.miRNA=0.05, lfc.mRNA=0, lfc.miRNA=0, genesets=NULL, lambda=NULL, sample.weights=TRUE, one.regulator.weight=TRUE, theta_TF=NULL, theta_miRNA=NULL, model=c("all-plug-in", "no-plug-in"), niter=500000, nburnin=100000, thin=50, potential_swaps=NULL, run.pretest=FALSE, condition.specific.inference=TRUE, only_switches=FALSE, weightSampleMean=0, weightSampleVariance=0.01) {
+    function(dat.mRNA, dat.miRNA, TFexpr, limmamRNA=NULL, limmamiRNA=NULL, limmaTF=NULL, nrep=NULL, fdr.mRNA=0.05, fdr.miRNA=0.05, lfc.mRNA=0, lfc.miRNA=0, genesets=NULL, lambda=NULL, sample.weights=TRUE, one.regulator.weight=TRUE, theta_TF=NULL, theta_miRNA=NULL, model=c("all-plug-in", "no-plug-in"), niter=500000, nburnin=100000, thin=50, potential_swaps=NULL, run.pretest=FALSE, condition.specific.inference=TRUE, only_switches=FALSE, weightSampleMean=0, weightSampleVariance=0.001, accessible=NULL) {
     mRNA <- exprs(dat.mRNA)
     TF <- exprs(TFexpr)
-    callGeneric(dat.mRNA=mRNA, TFexpr=TF, limmamRNA=limmamRNA, limmamiRNA=limmamiRNA, limmaTF=limmaTF, nrep=nrep, fdr.mRNA=fdr.mRNA, fdr.miRNA=fdr.miRNA, lfc.mRNA=lfc.mRNA, lfc.miRNA=lfc.miRNA, genesets=genesets, lambda=lambda, sample.weights=sample.weights, one.regulator.weight=one.regulator.weight, theta_TF=theta_TF, theta_miRNA=theta_miRNA, model=model, niter=niter, nburnin=nburnin, thin=thin, potential_swaps=potential_swaps, run.pretest=run.pretest, condition.specific.inference=condition.specific.inference, only_switches=only_switches, weightSampleMean=weightSampleMean, weightSampleVariance=weightSampleVariance)
+    callGeneric(dat.mRNA=mRNA, TFexpr=TF, limmamRNA=limmamRNA, limmamiRNA=limmamiRNA, limmaTF=limmaTF, nrep=nrep, fdr.mRNA=fdr.mRNA, fdr.miRNA=fdr.miRNA, lfc.mRNA=lfc.mRNA, lfc.miRNA=lfc.miRNA, genesets=genesets, lambda=lambda, sample.weights=sample.weights, one.regulator.weight=one.regulator.weight, theta_TF=theta_TF, theta_miRNA=theta_miRNA, model=model, niter=niter, nburnin=nburnin, thin=thin, potential_swaps=potential_swaps, run.pretest=run.pretest, condition.specific.inference=condition.specific.inference, only_switches=only_switches, weightSampleMean=weightSampleMean, weightSampleVariance=weightSampleVariance, accessible=accessible)
 })
 
 
 setMethod("birta",  c("dat.mRNA"="ExpressionSet", "dat.miRNA" = "missing", "TFexpr"="missing"),
-    function(dat.mRNA, dat.miRNA, TFexpr, limmamRNA=NULL, limmamiRNA=NULL, limmaTF=NULL, nrep=NULL, fdr.mRNA=0.05, fdr.miRNA=0.05, lfc.mRNA=0, lfc.miRNA=0, genesets=NULL, lambda=NULL, sample.weights=TRUE, one.regulator.weight=TRUE, theta_TF=NULL, theta_miRNA=NULL, model=c("all-plug-in", "no-plug-in"), niter=500000, nburnin=100000, thin=50, potential_swaps=NULL, run.pretest=FALSE, condition.specific.inference=TRUE, only_switches=FALSE, weightSampleMean=0, weightSampleVariance=0.01) {
+    function(dat.mRNA, dat.miRNA, TFexpr, limmamRNA=NULL, limmamiRNA=NULL, limmaTF=NULL, nrep=NULL, fdr.mRNA=0.05, fdr.miRNA=0.05, lfc.mRNA=0, lfc.miRNA=0, genesets=NULL, lambda=NULL, sample.weights=TRUE, one.regulator.weight=TRUE, theta_TF=NULL, theta_miRNA=NULL, model=c("all-plug-in", "no-plug-in"), niter=500000, nburnin=100000, thin=50, potential_swaps=NULL, run.pretest=FALSE, condition.specific.inference=TRUE, only_switches=FALSE, weightSampleMean=0, weightSampleVariance=0.001, accessible=NULL) {
     mRNA <- exprs(dat.mRNA)
-    callGeneric(dat.mRNA=mRNA, limmamRNA=limmamRNA, limmamiRNA=limmamiRNA, limmaTF=limmaTF, nrep=nrep, fdr.mRNA=fdr.mRNA, fdr.miRNA=fdr.miRNA, lfc.mRNA=lfc.mRNA, lfc.miRNA=lfc.miRNA, genesets=genesets, lambda=lambda, sample.weights=sample.weights, one.regulator.weight=one.regulator.weight, theta_TF=theta_TF, theta_miRNA=theta_miRNA, model=model, niter=niter, nburnin=nburnin, thin=thin, potential_swaps=potential_swaps, run.pretest=run.pretest, condition.specific.inference=condition.specific.inference, only_switches=only_switches, weightSampleMean=weightSampleMean, weightSampleVariance=weightSampleVariance)
+    callGeneric(dat.mRNA=mRNA, limmamRNA=limmamRNA, limmamiRNA=limmamiRNA, limmaTF=limmaTF, nrep=nrep, fdr.mRNA=fdr.mRNA, fdr.miRNA=fdr.miRNA, lfc.mRNA=lfc.mRNA, lfc.miRNA=lfc.miRNA, genesets=genesets, lambda=lambda, sample.weights=sample.weights, one.regulator.weight=one.regulator.weight, theta_TF=theta_TF, theta_miRNA=theta_miRNA, model=model, niter=niter, nburnin=nburnin, thin=thin, potential_swaps=potential_swaps, run.pretest=run.pretest, condition.specific.inference=condition.specific.inference, only_switches=only_switches, weightSampleMean=weightSampleMean, weightSampleVariance=weightSampleVariance, accessible=accessible)
 })
 
  
   setMethod("birta",  c("dat.mRNA"="matrix", "dat.miRNA" = "matrix", "TFexpr"="matrix"),
-      function(dat.mRNA, dat.miRNA, TFexpr, limmamRNA=NULL, limmamiRNA=NULL, limmaTF=NULL, nrep=NULL, fdr.mRNA=0.05, fdr.miRNA=0.05, lfc.mRNA=0, lfc.miRNA=0, genesets=NULL, lambda=NULL, sample.weights=TRUE, one.regulator.weight=TRUE, theta_TF=NULL, theta_miRNA=NULL, model=c("all-plug-in", "no-plug-in"), niter=500000, nburnin=100000, thin=50, potential_swaps=NULL, run.pretest=FALSE, condition.specific.inference=TRUE, only_switches=FALSE, weightSampleMean=0, weightSampleVariance=0.01) {
-      birtaRun(dat.mRNA, dat.miRNA, TFexpr, limmamRNA, limmamiRNA, limmaTF, nrep, fdr.mRNA, fdr.miRNA, lfc.mRNA, lfc.miRNA, genesets, lambda, sample.weights, one.regulator.weight, theta_TF, theta_miRNA, model, niter, nburnin, thin, potential_swaps, run.pretest, condition.specific.inference, only_switches, weightSampleMean, weightSampleVariance)
+      function(dat.mRNA, dat.miRNA, TFexpr, limmamRNA=NULL, limmamiRNA=NULL, limmaTF=NULL, nrep=NULL, fdr.mRNA=0.05, fdr.miRNA=0.05, lfc.mRNA=0, lfc.miRNA=0, genesets=NULL, lambda=NULL, sample.weights=TRUE, one.regulator.weight=TRUE, theta_TF=NULL, theta_miRNA=NULL, model=c("all-plug-in", "no-plug-in"), niter=500000, nburnin=100000, thin=50, potential_swaps=NULL, run.pretest=FALSE, condition.specific.inference=TRUE, only_switches=FALSE, weightSampleMean=0, weightSampleVariance=0.001, accessible=NULL) {
+      birtaRun(dat.mRNA, dat.miRNA, TFexpr, limmamRNA, limmamiRNA, limmaTF=limmaTF, nrep, fdr.mRNA, fdr.miRNA, lfc.mRNA, lfc.miRNA, genesets, lambda, sample.weights, one.regulator.weight, theta_TF, theta_miRNA, model, niter, nburnin, thin, potential_swaps, run.pretest, condition.specific.inference, only_switches, weightSampleMean, weightSampleVariance, accessible=accessible)
   })
  
  
   setMethod("birta",  c("dat.mRNA"="matrix", "dat.miRNA" = "matrix", "TFexpr"="missing"),
-      function(dat.mRNA, dat.miRNA, TFexpr, limmamRNA=NULL, limmamiRNA=NULL, limmaTF=NULL, nrep=NULL, fdr.mRNA=0.05, fdr.miRNA=0.05, lfc.mRNA=0, lfc.miRNA=0, genesets=NULL, lambda=NULL, sample.weights=TRUE, one.regulator.weight=TRUE, theta_TF=NULL, theta_miRNA=NULL, model=c("all-plug-in", "no-plug-in"), niter=500000, nburnin=100000, thin=50, potential_swaps=NULL, run.pretest=FALSE, condition.specific.inference=TRUE, only_switches=FALSE, weightSampleMean=0, weightSampleVariance=0.01) {
-      birtaRun(dat.mRNA, dat.miRNA, TFexpr=NULL, limmamRNA, limmamiRNA, limmaTF, nrep, fdr.mRNA, fdr.miRNA, lfc.mRNA, lfc.miRNA, genesets, lambda, sample.weights, one.regulator.weight, theta_TF, theta_miRNA, model, niter, nburnin, thin, potential_swaps, run.pretest, condition.specific.inference, only_switches, weightSampleMean, weightSampleVariance)
+      function(dat.mRNA, dat.miRNA, TFexpr, limmamRNA=NULL, limmamiRNA=NULL, limmaTF=NULL, nrep=NULL, fdr.mRNA=0.05, fdr.miRNA=0.05, lfc.mRNA=0, lfc.miRNA=0, genesets=NULL, lambda=NULL, sample.weights=TRUE, one.regulator.weight=TRUE, theta_TF=NULL, theta_miRNA=NULL, model=c("all-plug-in", "no-plug-in"), niter=500000, nburnin=100000, thin=50, potential_swaps=NULL, run.pretest=FALSE, condition.specific.inference=TRUE, only_switches=FALSE, weightSampleMean=0, weightSampleVariance=0.001, accessible=NULL) {
+      birtaRun(dat.mRNA, dat.miRNA, TFexpr=NULL, limmamRNA, limmamiRNA, limmaTF=limmaTF, nrep, fdr.mRNA, fdr.miRNA, lfc.mRNA, lfc.miRNA, genesets, lambda, sample.weights, one.regulator.weight, theta_TF, theta_miRNA, model, niter, nburnin, thin, potential_swaps, run.pretest, condition.specific.inference, only_switches, weightSampleMean, weightSampleVariance, accessible=accessible)
   })
  
  setMethod("birta",  c("dat.mRNA"="matrix", "dat.miRNA" = "missing", "TFexpr"="matrix"),
-     function(dat.mRNA, dat.miRNA, TFexpr, limmamRNA=NULL, limmamiRNA=NULL, limmaTF=NULL, nrep=NULL, fdr.mRNA=0.05, fdr.miRNA=0.05, lfc.mRNA=0, lfc.miRNA=0, genesets=NULL, lambda=NULL, sample.weights=TRUE, one.regulator.weight=TRUE, theta_TF=NULL, theta_miRNA=NULL, model=c("all-plug-in", "no-plug-in"), niter=500000, nburnin=100000, thin=50, potential_swaps=NULL, run.pretest=FALSE, condition.specific.inference=TRUE, only_switches=FALSE, weightSampleMean=0, weightSampleVariance=0.01) {
-     birtaRun(dat.mRNA, dat.miRNA=NULL, TFexpr, limmamRNA, limmamiRNA, limmaTF, nrep, fdr.mRNA, fdr.miRNA, lfc.mRNA, lfc.miRNA, genesets, lambda, sample.weights, one.regulator.weight, theta_TF, theta_miRNA, model, niter, nburnin, thin, potential_swaps, run.pretest, condition.specific.inference, only_switches, weightSampleMean, weightSampleVariance)
+     function(dat.mRNA, dat.miRNA, TFexpr, limmamRNA=NULL, limmamiRNA=NULL, limmaTF=NULL, nrep=NULL, fdr.mRNA=0.05, fdr.miRNA=0.05, lfc.mRNA=0, lfc.miRNA=0, genesets=NULL, lambda=NULL, sample.weights=TRUE, one.regulator.weight=TRUE, theta_TF=NULL, theta_miRNA=NULL, model=c("all-plug-in", "no-plug-in"), niter=500000, nburnin=100000, thin=50, potential_swaps=NULL, run.pretest=FALSE, condition.specific.inference=TRUE, only_switches=FALSE, weightSampleMean=0, weightSampleVariance=0.001, accessible=NULL) {
+     birtaRun(dat.mRNA, dat.miRNA=NULL, TFexpr, limmamRNA, limmamiRNA, limmaTF=limmaTF, nrep, fdr.mRNA, fdr.miRNA, lfc.mRNA, lfc.miRNA, genesets, lambda, sample.weights, one.regulator.weight, theta_TF, theta_miRNA, model, niter, nburnin, thin, potential_swaps, run.pretest, condition.specific.inference, only_switches, weightSampleMean, weightSampleVariance, accessible=accessible)
  })
  
  
  setMethod("birta",  c("dat.mRNA"="matrix", "dat.miRNA" = "missing", "TFexpr"="missing"),
-     function(dat.mRNA, dat.miRNA, TFexpr, limmamRNA=NULL, limmamiRNA=NULL, limmaTF=NULL, nrep=NULL, fdr.mRNA=0.05, fdr.miRNA=0.05, lfc.mRNA=0, lfc.miRNA=0, genesets=NULL, lambda=NULL, sample.weights=TRUE, one.regulator.weight=TRUE, theta_TF=NULL, theta_miRNA=NULL, model=c("all-plug-in", "no-plug-in"), niter=500000, nburnin=100000, thin=50, potential_swaps=NULL, run.pretest=FALSE, condition.specific.inference=TRUE, only_switches=FALSE, weightSampleMean=0, weightSampleVariance=0.01) {
-     birtaRun(dat.mRNA, dat.miRNA=NULL, TFexpr=NULL, limmamRNA, limmamiRNA, limmaTF, nrep, fdr.mRNA, fdr.miRNA, lfc.mRNA, lfc.miRNA, genesets, lambda, sample.weights, one.regulator.weight, theta_TF, theta_miRNA, model, niter, nburnin, thin, potential_swaps, run.pretest, condition.specific.inference, only_switches, weightSampleMean, weightSampleVariance)
+     function(dat.mRNA, dat.miRNA, TFexpr, limmamRNA=NULL, limmamiRNA=NULL, limmaTF=NULL, nrep=NULL, fdr.mRNA=0.05, fdr.miRNA=0.05, lfc.mRNA=0, lfc.miRNA=0, genesets=NULL, lambda=NULL, sample.weights=TRUE, one.regulator.weight=TRUE, theta_TF=NULL, theta_miRNA=NULL, model=c("all-plug-in", "no-plug-in"), niter=500000, nburnin=100000, thin=50, potential_swaps=NULL, run.pretest=FALSE, condition.specific.inference=TRUE, only_switches=FALSE, weightSampleMean=0, weightSampleVariance=0.001, accessible=NULL) {
+     birtaRun(dat.mRNA, dat.miRNA=NULL, TFexpr=NULL, limmamRNA, limmamiRNA, limmaTF=limmaTF, nrep, fdr.mRNA, fdr.miRNA, lfc.mRNA, lfc.miRNA, genesets, lambda, sample.weights, one.regulator.weight, theta_TF, theta_miRNA, model, niter, nburnin, thin, potential_swaps, run.pretest, condition.specific.inference, only_switches, weightSampleMean, weightSampleVariance, accessible=accessible)
  })
 

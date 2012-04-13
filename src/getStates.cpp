@@ -40,7 +40,7 @@ extern "C" {
 	}
 
 
-	SEXP getStates(SEXP num_mRNA, SEXP mRNA_names, SEXP num_miRNA, SEXP miRNA_names, SEXP num_TF, SEXP TF_names, SEXP replicates, SEXP mRNA_expr, SEXP miRNA_expr, SEXP sexp_mRNADataType, SEXP sexp_miRNADataType, SEXP sexp_use_miRNA_expression, SEXP mirTargets, SEXP TFtargets, SEXP sexpn0, SEXP sexpalpha, SEXP sexpbeta, SEXP sexpalpha_i0, SEXP sexpalpha_i, SEXP sexpb_j, SEXP sexpomega_miRNA, SEXP sexpomega_TF, SEXP niter, SEXP miRNA_sigma, SEXP mRNA_sigma, SEXP sexpmodel, SEXP sexpburnin, SEXP sexpthin, SEXP sexponly_switches, SEXP sexpT_potential_swaps, SEXP sexpS_potential_swaps, SEXP weightSampleMean, SEXP weightSampleVariance, SEXP sexpweight_sample_per_move, SEXP sexptheta_TF, SEXP sexptheta_miRNA, SEXP sexplambda_omega, SEXP sexpinit_S, SEXP sexpinit_T, SEXP sexpcondition_specific, SEXP sexpequal_regulator_weights, SEXP sexpTFexpr, SEXP sexpnTFexpr, SEXP sexpalpha_i0TF, SEXP sexpalpha_iTF, SEXP sexpTF_sigma, SEXP sexpalphaTF, SEXP sexpbetaTF) {
+	SEXP getStates(SEXP num_mRNA, SEXP mRNA_names, SEXP num_miRNA, SEXP miRNA_names, SEXP num_TF, SEXP TF_names, SEXP replicates, SEXP mRNA_expr, SEXP miRNA_expr, SEXP sexp_mRNADataType, SEXP sexp_miRNADataType, SEXP sexp_use_miRNA_expression, SEXP mirTargets, SEXP TFtargets, SEXP sexpn0, SEXP sexpalpha, SEXP sexpbeta, SEXP sexpalpha_i0, SEXP sexpalpha_i, SEXP sexpb_j, SEXP sexpomega_miRNA, SEXP sexpomega_TF, SEXP niter, SEXP miRNA_sigma, SEXP mRNA_sigma, SEXP sexpmodel, SEXP sexpburnin, SEXP sexpthin, SEXP sexponly_switches, SEXP sexpT_potential_swaps, SEXP sexpS_potential_swaps, SEXP weightSampleMean, SEXP weightSampleVariance, SEXP sexpweight_sample_per_move, SEXP sexptheta_TF, SEXP sexptheta_miRNA, SEXP sexplambda_omega, SEXP sexpinit_S, SEXP sexpinit_T, SEXP sexpcondition_specific, SEXP sexpequal_regulator_weights, SEXP sexpTFexpr, SEXP sexpnTFexpr, SEXP sexpalpha_i0TF, SEXP sexpalpha_iTF, SEXP sexpTF_sigma, SEXP sexpalphaTF, SEXP sexpbetaTF, SEXP sexpaccessible) {
 		int i,j,c,r;
 
 	      	int O_cnt = INTEGER(num_mRNA)[0];
@@ -335,10 +335,16 @@ extern "C" {
 	}
 
 	double **O_mu = (double **)malloc(sizeof(double*)*2);
+	int** methylated = (int**) malloc(sizeof(int*) * 2);
 	for(c=0; c<2; c++) {
+		methylated[c] = (int*) malloc(sizeof(int) * O_cnt);
 		O_mu[c] = (double *)malloc(sizeof(double)*O_cnt);
 		for(j=0; j<O_cnt; j++) {
-			O_mu[c][j] = b_j[j]; // initially all TF and miRNAs are inactive ==> mRNAs have the same mean under both conditions
+			methylated[c][i] = (int)INTEGER(sexpaccessible)[c + j*2];
+			if(condition_specific)
+				O_mu[c][j] = b_j[c]; // initially all TFs and miRNAs are inactive ==> mRNAs have the same expectation dependent mean (same for each mRNA!)
+			else
+				O_mu[c][j] = b_j[j]; // initially all TFs and miRNAs are inactive ==> mRNAs have the same mean under both conditions (different for each mRNA!)
 		}
 	}
 
@@ -351,11 +357,11 @@ extern "C" {
 
 	BayesNetwork *bn;
 	if(condition_specific){
-		bn = new BayesNetwork(O_cnt, A_cnt, T_cnt, MymRNAs, MymiRNAs, MyTFs, rep_cnt, O, A, mRNADataType, miRNADataType, S2O, SparentsOfO, T2O, TparentsOfO, n0, alpha, beta, alpha_i0, alpha_i, omega_miRNA, omega_TF, A_sigma, O_sigma, model, O_mu, only_switches, S_potential_swaps, T_potential_swaps, sampleMean, sampleVariance, weight_samples_per_move, equal_regulator_weights, theta_TF, theta_miRNA, lambda_omega, init_S, init_T, Otf, nTFexpr, alpha_i0TF, alpha_iTF, TF_sigma, alphaTF, betaTF);
+		bn = new BayesNetwork(O_cnt, A_cnt, T_cnt, MymRNAs, MymiRNAs, MyTFs, rep_cnt, O, A, mRNADataType, miRNADataType, S2O, SparentsOfO, T2O, TparentsOfO, n0, alpha, beta, alpha_i0, alpha_i, omega_miRNA, omega_TF, A_sigma, O_sigma, model, O_mu, only_switches, S_potential_swaps, T_potential_swaps, sampleMean, sampleVariance, weight_samples_per_move, equal_regulator_weights, theta_TF, theta_miRNA, lambda_omega, init_S, init_T, Otf, nTFexpr, alpha_i0TF, alpha_iTF, TF_sigma, alphaTF, betaTF, methylated);
 		
 	}
 	else{
-		bn = new BayesNetworkNC(O_cnt, A_cnt, T_cnt, MymRNAs, MymiRNAs, MyTFs, rep_cnt, O, A, mRNADataType, miRNADataType, S2O, SparentsOfO, T2O, TparentsOfO, n0, alpha, beta, alpha_i0, alpha_i, omega_miRNA, omega_TF, A_sigma, O_sigma, model, O_mu, only_switches, S_potential_swaps, T_potential_swaps, sampleMean, sampleVariance, weight_samples_per_move, equal_regulator_weights, theta_TF, theta_miRNA, lambda_omega, init_S, init_T, Otf, nTFexpr, alpha_i0TF, alpha_iTF, TF_sigma, alphaTF, betaTF);
+		bn = new BayesNetworkNC(O_cnt, A_cnt, T_cnt, MymRNAs, MymiRNAs, MyTFs, rep_cnt, O, A, mRNADataType, miRNADataType, S2O, SparentsOfO, T2O, TparentsOfO, n0, alpha, beta, alpha_i0, alpha_i, omega_miRNA, omega_TF, A_sigma, O_sigma, model, O_mu, only_switches, S_potential_swaps, T_potential_swaps, sampleMean, sampleVariance, weight_samples_per_move, equal_regulator_weights, theta_TF, theta_miRNA, lambda_omega, init_S, init_T, Otf, nTFexpr, alpha_i0TF, alpha_iTF, TF_sigma, alphaTF, betaTF, methylated);
 		  		
 	}
 	Rprintf("sampling ...\n");
@@ -370,19 +376,22 @@ extern "C" {
 	PROTECT(tfAct1 = NEW_NUMERIC(T_cnt));
 	PROTECT(tfAct2 = NEW_NUMERIC(T_cnt));
 
-	for(i=0; i<bn->getA_cnt(); i++) {
-	 	NUMERIC_POINTER(mirAct1)[i] = bn->getPostS()[0][i];
-	  	NUMERIC_POINTER(mirAct2)[i] = bn->getPostS()[1][i];
+	if(A_cnt > 0){
+		for(i=0; i<bn->getA_cnt(); i++) {
+		 	NUMERIC_POINTER(mirAct1)[i] = bn->getPostS()[0][i];
+		  	NUMERIC_POINTER(mirAct2)[i] = bn->getPostS()[1][i];
+		}
 	}
-	for(i=0; i<T_cnt; i++) {
-	  	NUMERIC_POINTER(tfAct1)[i] = bn->getPostT()[0][i];
-	  	NUMERIC_POINTER(tfAct2)[i] = bn->getPostT()[1][i];
+	if(T_cnt > 0){
+		for(i=0; i<T_cnt; i++) {
+		  	NUMERIC_POINTER(tfAct1)[i] = bn->getPostT()[0][i];
+		  	NUMERIC_POINTER(tfAct2)[i] = bn->getPostT()[1][i];
+		}
 	}
 	PROTECT(log_lik = NEW_NUMERIC(niterations+burnin+1));
-	for(i=0; i<niterations+burnin+1; i++) {
-		NUMERIC_POINTER(log_lik)[i] = log_lik_trace[i];
+	for(i=0; i<niterations+burnin+1; i++) {		
+		NUMERIC_POINTER(log_lik)[i] = log_lik_trace[i];		
 	}
-
 	// store sampled weights in a list
 	//TFs
 	SEXP currWeights;
@@ -398,22 +407,21 @@ extern "C" {
 			//UNPROTECT(1);
 		}
 	}
-
-	//miRNAs:
 	PROTECT(miRweights = NEW_LIST(A_cnt));
-	if(A_cnt > 0) {
-		
-		for(i=0; i<A_cnt; i++) {
-			int curr_size = LENGTH(VECTOR_ELT(sexpomega_miRNA, i));
-			PROTECT(currWeights = NEW_NUMERIC(curr_size));
-			for(j=0; j<curr_size; j++) {
-				NUMERIC_POINTER(currWeights)[j] = bn->getOmegaMiRNA()[i][j];
+	if(A_cnt > 0){
+		//miRNAs:
+		if(A_cnt > 0) {		
+			for(i=0; i<A_cnt; i++) {
+				int curr_size = LENGTH(VECTOR_ELT(sexpomega_miRNA, i));
+				PROTECT(currWeights = NEW_NUMERIC(curr_size));
+				for(j=0; j<curr_size; j++) {
+					NUMERIC_POINTER(currWeights)[j] = bn->getOmegaMiRNA()[i][j];
+				}
+				SET_ELEMENT(miRweights, i, currWeights);
+				//UNPROTECT(1);
 			}
-			SET_ELEMENT(miRweights, i, currWeights);
-			//UNPROTECT(1);
-		}
-	}	
-
+		}	
+	}		
 	PROTECT(result = NEW_LIST(7));
 	PROTECT(wnames = NEW_CHARACTER(7));
 	SET_STRING_ELT(wnames, 0, mkChar("miRNAstates1"));
@@ -421,8 +429,8 @@ extern "C" {
 	SET_STRING_ELT(wnames, 2, mkChar("TFstates1"));
 	SET_STRING_ELT(wnames, 3, mkChar("TFstates2"));
 	SET_STRING_ELT(wnames, 4, mkChar("log_lik_trace"));
-	SET_STRING_ELT(wnames, 5, mkChar("TFomega"));
-	SET_STRING_ELT(wnames, 6, mkChar("miRNAomega"));
+	SET_STRING_ELT(wnames, 5, mkChar("TFweights"));
+	SET_STRING_ELT(wnames, 6, mkChar("miRNAweights"));
 	SET_NAMES(result, wnames);
 	UNPROTECT(1);
 	SET_ELEMENT(result, 0, mirAct1);

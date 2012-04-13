@@ -8,7 +8,7 @@ get_potential_swaps = function(genesetsTF=NULL, genesetsmiRNA=NULL, perc.overlap
 		for(i in 1:length(tf)) {
 			for(j in 1:length(tf)) {
 				if(i != j) {
-					mtf[i,j] = length(intersect(tf[[i]], tf[[j]]))/ length((tf[[i]]))#, tf[[j]]union
+					mtf[i,j] = length(intersect(tf[[i]], tf[[j]]))/ length(union(tf[[i]], tf[[j]]))
 				}
 				else {
 					mtf[i,j] = 0
@@ -33,7 +33,7 @@ get_potential_swaps = function(genesetsTF=NULL, genesetsmiRNA=NULL, perc.overlap
 		for(i in 1:length(miR)) {
 			for(j in 1:length(miR)) {
 				if(i != j) {
-					mmiR[i,j] = length(intersect(miR[[i]], miR[[j]]))/length((miR[[i]]))#, miR[[j]]))union
+					mmiR[i,j] = length(intersect(miR[[i]], miR[[j]]))/length(union(miR[[i]], miR[[j]]))
 				}
 				else {
 					mmiR[i,j] = 0

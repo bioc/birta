@@ -32,9 +32,10 @@ using namespace std;
 BayesNetwork::BayesNetwork(){
 }
 		
-BayesNetwork::BayesNetwork(int O_cnt, int A_cnt, int T_cnt, char **mRNAs, char **miRNAs, char **TFs, int **rep_cnt, double ***mRNA_expression, double ***miRNA_expression, int mRNADataType, int miRNADataType, list<int> *S2O, list<int> *SparentsOfO, list<int> *T2O, list<int> *TparentsOfO,  double n0, double alpha, double beta, double *alpha_i0, double* alpha_i, double **omega_miRNA, double **omega_TF, double *miRNA_sigma, double *mRNA_sigma, int model, double **O_mu, int only_switches, list<int> *S_potential_swaps, list<int> *T_potential_swaps, double weightSampleMean, double weightSampleVariance, int weight_samples_per_move, int equal_regulator_weights, double theta_TF, double theta_miRNA, double lambda_omega, int** init_S, int** init_T, double ***Otf, int nTFexpr, double *alpha_i0TF, double *alpha_iTF, double *TF_sigma, double alphaTF, double betaTF) { 
+BayesNetwork::BayesNetwork(int O_cnt, int A_cnt, int T_cnt, char **mRNAs, char **miRNAs, char **TFs, int **rep_cnt, double ***mRNA_expression, double ***miRNA_expression, int mRNADataType, int miRNADataType, list<int> *S2O, list<int> *SparentsOfO, list<int> *T2O, list<int> *TparentsOfO,  double n0, double alpha, double beta, double *alpha_i0, double* alpha_i, double **omega_miRNA, double **omega_TF, double *miRNA_sigma, double *mRNA_sigma, int model, double **O_mu, int only_switches, list<int> *S_potential_swaps, list<int> *T_potential_swaps, double weightSampleMean, double weightSampleVariance, int weight_samples_per_move, int equal_regulator_weights, double theta_TF, double theta_miRNA, double lambda_omega, int** init_S, int** init_T, double ***Otf, int nTFexpr, double *alpha_i0TF, double *alpha_iTF, double *TF_sigma, double alphaTF, double betaTF, int** accessible) { 
 	
 	this->equal_regulator_weights = equal_regulator_weights;
+	this->accessible = accessible;
 
 	this->MODEL = model;
 
@@ -152,10 +153,10 @@ BayesNetwork::BayesNetwork(int O_cnt, int A_cnt, int T_cnt, char **mRNAs, char *
 			mean_c2 = mean_c2/rep_cnt[0][1];
 
 			if(mean_c1 < mean_c2) {
-				this->miR_higher_in_condition[i] = 1;
+				this->miR_higher_in_condition[i] = 1; // this is the index of the condition!
 			}
 			else {
-				this->miR_higher_in_condition[i] = -1;
+				this->miR_higher_in_condition[i] = 0; // this is the index of the condition!
 			}
 			//Rprintf("m1=%f, m2=%f, higher cond := %d\n", mean_c1, mean_c2, this->miR_higher_in_condition[i]);
 		}
@@ -179,7 +180,7 @@ BayesNetwork::BayesNetwork(int O_cnt, int A_cnt, int T_cnt, char **mRNAs, char *
 			mean_c1 = mean_c1/(rep_cnt[1][0] * S2O[i].size());
 			mean_c2 = mean_c2/(rep_cnt[1][1] * S2O[i].size()) ;
 			if(mean_c1 < mean_c2) {
-				this->miR_higher_in_condition[i] = -1; // assumption: miRNA is active in that condition, in which gene expression is lower
+				this->miR_higher_in_condition[i] = 0; // assumption: miRNA is active in that condition, in which gene expression is lower
 			}
 			else {
 				this->miR_higher_in_condition[i] = 1;
@@ -243,9 +244,6 @@ BayesNetwork::BayesNetwork(int O_cnt, int A_cnt, int T_cnt, char **mRNAs, char *
 // TODO: include free for Otf;
 BayesNetwork::~BayesNetwork() {
 	// CFree or delete statements for all allocated objects	
-	if(MODEL == 1) {
-		CFree(O_sigma);
-	}
 	int c,i,j;
 	if(A_cnt > 0){		
 		CFree(activeMiRNAs);		
@@ -287,7 +285,6 @@ BayesNetwork::~BayesNetwork() {
 			CFree(A);
 		}
 	}	
-	
 	if(T_cnt > 0){
 		CFree(activeTFs);
 		for(i=0; i<T_cnt; i++) {	
@@ -325,7 +322,9 @@ BayesNetwork::~BayesNetwork() {
 			CFree(T_npossible_swaps);
 		}
 	}
-	//printf("%d, %d\n", O_cnt, T_cnt);
+	if(MODEL == 1) {
+		CFree(O_sigma);
+	}	
 	for(i=0; i<O_cnt; i++) {
 		CFree(mRNAs[i]); // IDs of mRNAs		
 	}
@@ -333,14 +332,16 @@ BayesNetwork::~BayesNetwork() {
 		
 		
 	for(c=0; c<2; c++) {
-	    for(i=0; i<O_cnt; i++) {
-	        CFree(O[c][i]);
-	    }
-	    CFree(O[c]);
-	    CFree(O_mu[c]);	    
+		for(i=0; i<O_cnt; i++) {
+			CFree(O[c][i]);
+		}
+		CFree(O[c]);
+		CFree(O_mu[c]);	
+		CFree(accessible[c]); 
 	}
 	CFree(O);
 	CFree(O_mu);	
+	CFree(accessible);
 	
 	
 	if(rep_cnt != NULL) {
@@ -351,16 +352,18 @@ BayesNetwork::~BayesNetwork() {
 	}
 	
 	for(i=0; i<O_cnt; i++) {
-	  if(A_cnt > 0) {
-	    SparentsOfO[i].clear();
-	  }
-	  if(T_cnt > 0) {
-	    TparentsOfO[i].clear();
-	  }
+		if(A_cnt > 0) {
+			SparentsOfO[i].clear();
+		}
+		if(T_cnt > 0) {
+			TparentsOfO[i].clear();
+		}
 	}
-	delete [] SparentsOfO;
-	delete [] TparentsOfO;
-	
+	if(A_cnt > 0)
+		delete [] SparentsOfO;
+	if(T_cnt > 0)
+		delete [] TparentsOfO;
+		
 	if(nTFexpr > 0) {
 		for(c=0; c<2; c++) {
 			for(i=0; i<nTFexpr; i++) {
@@ -373,9 +376,7 @@ BayesNetwork::~BayesNetwork() {
 		CFree(alpha_iTF);
 		CFree(TF_sigma);
 		
-	}
-
-	
+	}	
 }
 
 double BayesNetwork::logNB(double x, double mu, double phi){
@@ -391,9 +392,9 @@ int BayesNetwork::neighbourhood_switch() {
 
 double BayesNetwork::get_mu0(int i, int c) {
 	// two-state ANOVA model
-	if(c == 0) // we assume the first condition to be the reference!!!!
+	if(c == 0) // we assume the first condition to be the reference!!!! 
 		return(alpha_i0[i]);
-	else
+	else 
 	 	return(alpha_i0[i] + alpha_i[i]*abs(S[1][i] - S[0][i]));	
 } 
 
@@ -425,7 +426,7 @@ double BayesNetwork::get_omuInitial(int i, int c, int** nactive_miRNAs, int** na
 			}
 		}
 	}
-	if((T_cnt > 0) && (nactive_TFs != NULL)){
+	if((T_cnt > 0) && (nactive_TFs != NULL) && accessible[c][i]){
 		if(nactive_TFs[i][c] > 0){
 			start = TparentsOfO[i].begin();
 			stop = TparentsOfO[i].end(); 	
@@ -463,22 +464,24 @@ double BayesNetwork::get_omu(int j, int c, int index_for_omega, int switchid, in
 		}
 	}
 	else {
-		// if new state == 1
-		if(T[c][switchid] == 1) {
-			if(weight_samples != NULL) {
-				omu += (omega_TF[switchid][index_for_omega] + weight_samples[index_for_omega]);// / (double)(nactive_TFs[j][c] + 1);
-		     	}
+		if(accessible[c][switchid]){
+			// if new state == 1
+			if(T[c][switchid] == 1) {
+				if(weight_samples != NULL) {
+					omu += (omega_TF[switchid][index_for_omega] + weight_samples[index_for_omega]);// / (double)(nactive_TFs[j][c] + 1);
+		    	 }
 			else {
 				omu += omega_TF[switchid][index_for_omega];// / (double)(nactive_TFs[j][c] + 1);
 			}
 			if(doUpdate)
 				nactive_TFs[j][c]++;
-		}
-		// new state == 0
-		else {
-			omu -= omega_TF[switchid][index_for_omega];// / (double)nactive_TFs[j][c];
-			if(doUpdate)
-				nactive_TFs[j][c]--;
+			}
+			// new state == 0
+			else {
+				omu -= omega_TF[switchid][index_for_omega];// / (double)nactive_TFs[j][c];
+				if(doUpdate)
+					nactive_TFs[j][c]--;
+			}
 		}
 	}
     return omu;
@@ -699,8 +702,13 @@ double* BayesNetwork::MCMC(long niter, long burnin, int thin) {
 		//printf("nactive_miRNAs[%i][0] = %i, nactive_miRNAs[%i][1] = %i\n", k, nactive_miRNAs[k][0], k, nactive_miRNAs[k][1]);		
 		O_mu[0][k] = get_omuInitial(k, 0, nactive_miRNAs, nactive_TFs);
 		O_mu[1][k] = get_omuInitial(k, 1, nactive_miRNAs, nactive_TFs);
-	}
-    	double log_lik = 0;
+		if(isnan(O_mu[0][k]) || isnan(O_mu[1][k])){
+			Rprintf("Error: O_mu (k = %i) is NA!\n", k);
+			return(0);
+		}
+//		Rprintf("O_mu[0][%i] = %g, O_mu[1][%i] = %g\n", k, O_mu[0][k], O_mu[1][k]);
+	}	
+    	double log_lik = 0, mu0;
     	int c, r;
 	k = 0;
     	long i;
@@ -709,21 +717,26 @@ double* BayesNetwork::MCMC(long niter, long burnin, int thin) {
 		for(r=0; r<this->rep_cnt[0][c]; r++) {
 			if(A != NULL){
 		    		for(i=0; i<this->A_cnt; i++) {
-					if(A[c][i][r] == A[c][i][r]) { // check for NaN
+					if(!isnan(A[c][i][r])) { // check for NaN
 						if(MODEL == 1) {
+							mu0 = get_mu0(i, c);
+							if(isnan(mu0)){
+								Rprintf("Error: mu0 (i = %i, c = %i) is NA!\n", i, c);
+								return(0);
+							}
 							if(this->miRNADataType == ARRAY)
-								log_lik -= (pow(A[c][i][r] - get_mu0(i, c), 2)/pow(A_sigma[i], 2));
+								log_lik -= (pow(A[c][i][r] - mu0, 2)/pow(A_sigma[i], 2));
 							else
-								log_lik -= logNB(A[c][i][r], get_mu0(i, c), A_sigma[i]);
+								log_lik -= logNB(A[c][i][r], mu0, A_sigma[i]);
 						}
 						else if((MODEL == 2) | (MODEL == 3)){
 							if(this->miRNADataType != ARRAY){
 								Rprintf("Model %i not implemented for RNAseq data!\n", MODEL);
 								return(0);
 							}							
-							log_lik -= pow((A[c][i][r] + get_mu0(i, c)*n0)/(1+n0), 2) - (alpha+0.5) * log(0.5*n0*pow(get_mu0(i, c),2)+0.5*pow(A[c][i][r],2)+beta);
+							log_lik -= pow((A[c][i][r] + mu0*n0)/(1+n0), 2) - (alpha+0.5) * log(0.5*n0*pow(mu0,2)+0.5*pow(A[c][i][r],2)+beta);
 						}
-					}
+					}					
 		    		}
 			}
 		}
@@ -747,10 +760,8 @@ double* BayesNetwork::MCMC(long niter, long burnin, int thin) {
 				}
 		    	}
 		}
-		
 		// sum over TF replicates
-		if((nTFexpr > 0)) {
-			
+		if((nTFexpr > 0)) {			
 			for(r=0; r<this->rep_cnt[1][c]; r++) {
 				for(i=0; i<this->nTFexpr; i++) {
 					if(Otf[c][i][r] == Otf[c][i][r]) { // check for NaN
@@ -773,6 +784,10 @@ double* BayesNetwork::MCMC(long niter, long burnin, int thin) {
 			}
 		}
     	}
+	if(isnan(log_lik)) {
+		Rprintf("Error: log_lik is NA!\n");
+		return(0);
+	}
     
     	log_lik_trace[0] = log_lik;
 	int weight_sampling = 1;
@@ -847,13 +862,7 @@ double* BayesNetwork::MCMC(long niter, long burnin, int thin) {
 					if(weight_sampling == 1) {
 						miR_weight_samples = (double*) calloc(S2O[swapped2one].size(), sizeof(double));
 						rnd = rnorm(this->weightSampleMean, this->weightSampleVariance);
-						double rndup = rnorm(this->weightSampleMean, this->weightSampleVariance);
-						double rnddown = rnorm(this->weightSampleMean, this->weightSampleVariance);
-						for(j = 0; j < (int)S2O[swapped2one].size(); j++){
-							if(this->omega_miRNA[swapped2one][j] <= 0) 
-								rnd = rnddown;
-							if(this->omega_miRNA[swapped2one][j] >= 0)
-								rnd = rndup;
+						for(j = 0; j < S2O[swapped2one].size(); j++){
 							if(!equal_regulator_weights)								
 								rnd = rnorm(this->weightSampleMean, this->weightSampleVariance);
 							
@@ -947,14 +956,8 @@ double* BayesNetwork::MCMC(long niter, long burnin, int thin) {
 
 					if(weight_sampling == 1) {
 					        tf_weight_samples = (double*) calloc(T2O[swapped2one].size(), sizeof(double));
-					        rnd = rnorm(this->weightSampleMean, this->weightSampleVariance);
-						double rndup = rnorm(this->weightSampleMean, this->weightSampleVariance);
-						double rnddown = rnorm(this->weightSampleMean, this->weightSampleVariance);
-						for(j = 0; j < (int)T2O[swapped2one].size(); j++){
-							if(this->omega_TF[swapped2one][j] <= 0) 
-								rnd = rnddown;
-							if(this->omega_TF[swapped2one][j] >= 0)
-								rnd = rndup;
+						rnd = rnorm(this->weightSampleMean, this->weightSampleVariance);
+						for(j = 0; j <T2O[swapped2one].size(); j++){
 							if(!equal_regulator_weights)								
 								rnd = rnorm(this->weightSampleMean, this->weightSampleVariance);
 							
@@ -1027,7 +1030,6 @@ double* BayesNetwork::MCMC(long niter, long burnin, int thin) {
 					switchid = switchid - T_cnt;
 					condition = 1;
 				}
-				condition = 1;
 				// if weights are sampled, replace old weights with new weights here and calculate new log likelihood, try max. weight_samples_per_move different samples for the weights
 
 				int weight_sample_it;
@@ -1035,14 +1037,8 @@ double* BayesNetwork::MCMC(long niter, long burnin, int thin) {
 					double *tf_weight_samples=NULL;
 					if(weight_sampling == 1) {
 					        tf_weight_samples = (double*) calloc(T2O[switchid].size(), sizeof(double));
-					          rnd = rnorm(this->weightSampleMean, this->weightSampleVariance);
-						double rndup = rnorm(this->weightSampleMean, this->weightSampleVariance);
-						double rnddown = rnorm(this->weightSampleMean, this->weightSampleVariance);
-						for(j = 0; j < (int)T2O[switchid].size(); j++){
-							if(this->omega_TF[switchid][j] <= 0) 
-								rnd = rnddown;
-							if(this->omega_TF[switchid][j] >= 0)
-								rnd = rndup;
+						rnd = rnorm(this->weightSampleMean, this->weightSampleVariance);
+						for(j = 0; j < T2O[switchid].size(); j++){
 							if(!equal_regulator_weights)								
 								rnd = rnorm(this->weightSampleMean, this->weightSampleVariance);
 							
@@ -1138,13 +1134,7 @@ double* BayesNetwork::MCMC(long niter, long burnin, int thin) {
 					if(weight_sampling == 1) {
 					        miR_weight_samples = (double*) calloc(S2O[switchid].size(), sizeof(double));
 						rnd = rnorm(this->weightSampleMean, this->weightSampleVariance);
-						double rndup = rnorm(this->weightSampleMean, this->weightSampleVariance);
-						double rnddown = rnorm(this->weightSampleMean, this->weightSampleVariance);
-						for(j = 0; j < (int)S2O[switchid].size(); j++){
-							if(this->omega_miRNA[switchid][j] <= 0) 
-								rnd = rnddown;
-							if(this->omega_miRNA[switchid][j] >= 0)
-								rnd = rndup;
+						for(j = 0; j < S2O[switchid].size(); j++){
 							if(!equal_regulator_weights)								
 								rnd = rnorm(this->weightSampleMean, this->weightSampleVariance);
 							
@@ -1251,6 +1241,8 @@ double* BayesNetwork::MCMC(long niter, long burnin, int thin) {
 	int cond, mir, tf;
 	if(log_lik_trace[i + 1] > 1e100)
 		Rprintf("Warning: log-likelihood > 1e100!\n");
+	if(isnan(log_lik))
+		Rprintf("Warning: log-likelihood is NA!\n");
 	
 	// update of samples from posterior
 	if((i >= burnin) & (i%thin == 0)) {
@@ -1296,10 +1288,10 @@ double* BayesNetwork::MCMC(long niter, long burnin, int thin) {
 			this->posterior_miRNA[c][mir] /= (double) k;
 		}
 		
-		if(miR_higher_in_condition[mir] == -1) { // if miRNA is higher expressed in c=0 it should be acitve here (see dummy coding of miR_higher_in_condition)
-			double post_c1 = this->posterior_miRNA[0][mir];
-			this->posterior_miRNA[0][mir] = this->posterior_miRNA[1][mir];
-			this->posterior_miRNA[1][mir] = post_c1;
+		if(miR_higher_in_condition[mir] == 0) { // if miRNA is higher expressed in c=0 it should be acitve here (see dummy coding of miR_higher_in_condition) (OK, macht Sinn)
+			double post_c0 = this->posterior_miRNA[0][mir];
+			if(post_c0 < posterior_miRNA[1][mir])				
+				this->posterior_miRNA[0][mir] = this->posterior_miRNA[1][mir];
 		}
 		if(weight_sampling == 1){
 			for(j = 0; j < (int)S2O[mir].size(); j++)
@@ -1323,21 +1315,21 @@ double* BayesNetwork::MCMC(long niter, long burnin, int thin) {
 		CFree(nactive_TFs);
 	}
 	
-	for(i=0; i<nTFexpr; i++) {			
+	/*for(i=0; i<nTFexpr; i++) {			
 			
-		if(alpha_iTF[i] <= 0) {
+		if(alpha_iTF[i] <= 0) { // Damit wäre ich vorsichtig: vielleicht ist der logFC ja nur minimal
 			double tempsample = posterior_TF[1][i];
 			posterior_TF[1][i] = posterior_TF[0][i];
 			posterior_TF[0][i] = tempsample;
-		}
-		else {
+		}*/
+		//else {
 			/*Rprintf("%d\n", i);
 			double tempsample = posterior_TF[1][i];
 			posterior_TF[1][i] = posterior_TF[0][i];
 			posterior_TF[0][i] = tempsample;*/
-		}
+		//}
 		//Rprintf("m1=%f, m2=%f, higher cond := %d\n", mean_c1, mean_c2, this->miR_higher_in_condition[i]);
-	}
+	//}
 	
     PutRNGstate();
     return log_lik_trace;
@@ -1375,7 +1367,7 @@ double BayesNetwork::doSwitch(int **states, list<int> *edges, int switchid, int 
 		
 			for(r=0; r<this->rep_cnt[1][condition]; r++) {
 				// calculate log likelihood difference for switch
-				if(O[condition][j][r] == O[condition][j][r]) { // check for NaN
+				if(!isnan(O[condition][j][r])) { // check for NaN
 					if(MODEL == 1) {
 						if(this->mRNADataType == ARRAY)
 							log_lik_diff += ( (pow(mu_before,2)-pow(mu_after,2)) + 2*O[condition][j][r]*(mu_after-mu_before) )/pow(O_sigma[j], 2);
@@ -1451,7 +1443,7 @@ double BayesNetwork::doSwitch(int **states, list<int> *edges, int switchid, int 
 		      	}
 
 			double new_mu0 = get_mu0(i, condition);
-			if(A[condition][i][r] == A[condition][i][r]) { // check for NaN
+			if(!isnan(A[condition][i][r])) { // check for NaN
 				if(MODEL == 1) {
 					if(this->miRNADataType == ARRAY)
 						log_lik_diff += ( (pow(mu0_before,2)-pow(new_mu0,2))+2*A[condition][i][r]*(new_mu0-mu0_before) )/pow(A_sigma[i], 2);
@@ -1469,6 +1461,9 @@ double BayesNetwork::doSwitch(int **states, list<int> *edges, int switchid, int 
 			states[condition][switchid] = before_switch;
 	  	}
 	}
+	
+	if(isnan(log_lik_diff))
+		Rprintf("Warning lok_lik_diff (doSwitch) is NA!\n");
 
 	return log_lik_diff;
 }

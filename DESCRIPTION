@@ -1,11 +1,13 @@
 Package: birta
-Version: 1.1.0
-Date: 2012-03-16
+Version: 1.0.1
+Date: 2012-04-11
 Title: Bayesian Inference of Regulation of Transcriptional Activity
 Author: Benedikt Zacher, Khalid Abnaof, Stephan Gade, Erfan Younesi, Achim Tresch, Holger Froehlich
 Maintainer: Benedikt Zacher <zacher@lmb.uni-muenchen.de>
 Depends: limma, MASS, R(>= 2.10), Biobase, methods
 Description: Expression levels of mRNA molecules are regulated by different processes, comprising inhibition or activation by transcription factors and post-transcriptional degradation by microRNAs. birta (Bayesian Inference of Regulation of Transcriptional Activity) uses the regulatory networks of TFs and miRNAs together with mRNA and miRNA expression data to predict switches in regulatory activity between two conditions. A Bayesian network is used to model the regulatory structure and Markov-Chain-Monte-Carlo is applied to sample the activity states.
-License:  GPL (>= 2)
-biocViews: Microarray, Sequencing, GeneExpression, Transcription, Bioinformatics, GraphsAndNetworks
+License: GPL (>= 2)
+biocViews: Microarray, Sequencing, GeneExpression, Transcription,
+        Bioinformatics, GraphsAndNetworks
 LazyLoad: yes
+Packaged: 2012-03-31 07:23:50 UTC; biocbuild

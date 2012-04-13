@@ -25,7 +25,7 @@ Returns a list containing the following entries:
 G. K. Smyth. Limma : Linear Models for Microarray Data. \emph{Bioinformatics}, (2005):397-420.
 }
 \author{
-Benedikt Zacher (zacher@lmb.uni-muenchen.de), Holger Frohlich
+Benedikt Zacher (zacher@lmb.uni-muenchen.de), Holger Froehlich
 }
 \seealso{\code{\link[limma]{lmFit}}, \code{\link[limma]{topTable}}}
 \examples{
