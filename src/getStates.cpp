@@ -81,8 +81,8 @@ extern "C" {
 		
 		
 		if(use_miRNA_expression){
-			alpha_i0 = (double *)malloc(sizeof(double)*A_cnt);
-			alpha_i = (double *) malloc(sizeof(double)*A_cnt);
+			alpha_i0 = (double *)R_alloc(A_cnt, sizeof(double));
+			alpha_i = (double *) R_alloc(A_cnt, sizeof(double));
 			for(i=0; i<A_cnt; i++) {
 				alpha_i0[i] = REAL(sexpalpha_i0)[i];
 				alpha_i[i] = REAL(sexpalpha_i)[i];
@@ -118,40 +118,40 @@ extern "C" {
 				}
 			}
 		}
-		double **omega_miRNA = (double **)calloc(A_cnt, sizeof(double*));
+		double **omega_miRNA = (double **)R_alloc(A_cnt, sizeof(double*));
 		for(i=0; i<A_cnt; i++) {
 			int curr_size = LENGTH(VECTOR_ELT(sexpomega_miRNA, i));
-			omega_miRNA[i] = (double*)calloc(curr_size, sizeof(double));
+			omega_miRNA[i] = (double*)R_alloc(curr_size, sizeof(double));
 			for(j=0; j<curr_size; j++) {
 				omega_miRNA[i][j] = REAL(VECTOR_ELT(sexpomega_miRNA, i))[j];
 			}
 		}
 	
-		 double **omega_TF = (double **)calloc(T_cnt, sizeof(double*));
+		 double **omega_TF = (double **)R_alloc(T_cnt, sizeof(double*));
 		for(i=0; i<T_cnt; i++) {
 			int curr_size = LENGTH(VECTOR_ELT(sexpomega_TF, i));
-			omega_TF[i] = (double*)calloc(curr_size, sizeof(double));
+			omega_TF[i] = (double*)R_alloc(curr_size, sizeof(double));
 			for(j=0; j<curr_size; j++) {
 				omega_TF[i][j] = REAL(VECTOR_ELT(sexpomega_TF, i))[j];
 			}
 		}
 		// IDs of mRNAs
-		char **MymRNAs = (char **)malloc(sizeof(char*)*O_cnt);
+		char **MymRNAs = (char **)R_alloc(O_cnt, sizeof(char*));
 		for(i=0; i<O_cnt; i++) {
 			int l = LENGTH(STRING_ELT(mRNA_names, i));
 			const char *tempRNA = CHAR(STRING_ELT(mRNA_names, i));
-			MymRNAs[i] = (char *)malloc(sizeof(char)*(l+1));
+			MymRNAs[i] = (char *)R_alloc(l+1, sizeof(char));
 			for(j=0; j<=l; j++) {
 		  		MymRNAs[i][j] = tempRNA[j];
 			}
 		}
 
 		// IDs of miRNAs
-		char **MymiRNAs = (char **)malloc(sizeof(char*)*A_cnt);
+		char **MymiRNAs = (char **)R_alloc(A_cnt, sizeof(char*));
 		for(i=0; i<A_cnt; i++) {
 			int l = LENGTH(STRING_ELT(miRNA_names, i));
 			const char *tempRNA = CHAR(STRING_ELT(miRNA_names, i));
-			MymiRNAs[i] = (char *)malloc(sizeof(char)*(l+1));
+			MymiRNAs[i] = (char *)R_alloc(l+1,sizeof(char));
 			for(j=0; j<=l; j++) {
 		  		MymiRNAs[i][j] = tempRNA[j];
 			}
@@ -169,19 +169,19 @@ extern "C" {
 				}
 			}
 		}
-		char **MyTFs = (char **)malloc(sizeof(char*)*T_cnt);
+		char **MyTFs = (char **)R_alloc(T_cnt, sizeof(char*));
 		for(i=0; i<T_cnt; i++) {
 			int l = LENGTH(STRING_ELT(TF_names, i));
 			const char *tempTF = CHAR(STRING_ELT(TF_names, i));
-			MyTFs[i] = (char *)malloc(sizeof(char)*(l+1));
+			MyTFs[i] = (char *)R_alloc(l+1, sizeof(char));
 			for(j=0; j<=l; j++) {
 		  		MyTFs[i][j] = tempTF[j];
 			}
 		}
 	      // #replicates of experiment (miRNA=0, mRNA=1) e under condition c (control=0, treated=1), access rep_cnt[e][c]
-	      int **rep_cnt = (int**)malloc(sizeof(int *)*2); 
-	      rep_cnt[0] = (int *)malloc(sizeof(int)*2);
-	      rep_cnt[1] = (int *)malloc(sizeof(int)*2);
+	      int **rep_cnt = (int**)R_alloc(2, sizeof(int *)); 
+	      rep_cnt[0] = (int *)R_alloc(2, sizeof(int));
+	      rep_cnt[1] = (int *)R_alloc(2, sizeof(int));
 	      rep_cnt[0][0] = INTEGER(replicates)[0];
 	      rep_cnt[0][1] = INTEGER(replicates)[1];
 	      rep_cnt[1][0] = INTEGER(replicates)[2];
@@ -190,9 +190,9 @@ extern "C" {
 
 	double ***A = NULL;
 	if(use_miRNA_expression){
-		A = (double ***) malloc(sizeof(double**)*2);
+		A = (double ***) R_alloc(2, sizeof(double**));
 		for(c=0; c<2; c++) {
-			A[c] = (double**) malloc(sizeof(double*)*A_cnt);
+			A[c] = (double**) R_alloc(A_cnt, sizeof(double*));
 			for(i=0; i<A_cnt; i++) {
 				int nreps;
 				if(c==0) {
@@ -201,7 +201,7 @@ extern "C" {
 				else if(c == 1) {
 					nreps = rep_cnt[0][1];
 				}
-				A[c][i] = (double*) malloc(sizeof(double)*nreps);
+				A[c][i] = (double*) R_alloc(nreps, sizeof(double));
 				for(r=0; r<nreps; r++) {
 					if(c==0) {
 						A[c][i][r] = REAL(miRNA_expr)[i+(r*A_cnt)];
@@ -217,9 +217,9 @@ extern "C" {
 
     
       	// Expression under condition c = {0=control,1=treated} of mRNA/miRNA i, in replicate r 
-      	double ***O = (double ***) malloc(sizeof(double**)*2);     
+      	double ***O = (double ***) R_alloc(2, sizeof(double**));     
 	for(c=0; c<2; c++) {
-		O[c] = (double**) malloc(sizeof(double*)*O_cnt);
+		O[c] = (double**) R_alloc(O_cnt, sizeof(double*));
 		for(i=0; i<O_cnt; i++) {
 			int nreps;
 			if(c==0) {
@@ -228,7 +228,7 @@ extern "C" {
 			else if(c == 1) {
 				nreps = rep_cnt[1][1];
 			}
-			O[c][i] = (double*) malloc(sizeof(double)*nreps);
+			O[c][i] = (double*) R_alloc(nreps, sizeof(double));
 			for(r=0; r<nreps; r++) {
 				if(c==0) {
 					O[c][i][r] = REAL(mRNA_expr)[i+(r*O_cnt)];
@@ -248,9 +248,9 @@ extern "C" {
 	//Rprintf("%d\n", nTFexpr);
 	if(nTFexpr > 0) {
 		// Expression for transcription factors
-		Otf = (double ***) malloc(sizeof(double**)*2);     
+		Otf = (double ***) R_alloc(2, sizeof(double**));     
 		for(c=0; c<2; c++) {
-			Otf[c] = (double**) malloc(sizeof(double*)*nTFexpr);
+			Otf[c] = (double**) R_alloc(nTFexpr, sizeof(double*));
 			for(i=0; i<nTFexpr; i++) {
 				int nreps;
 				if(c==0) {
@@ -259,7 +259,7 @@ extern "C" {
 				else if(c == 1) {
 					nreps = rep_cnt[1][1];
 				}
-				Otf[c][i] = (double*) malloc(sizeof(double)*nreps);
+				Otf[c][i] = (double*) R_alloc(nreps, sizeof(double));
 				for(r=0; r<nreps; r++) {
 					if(c==0) {
 						Otf[c][i][r] = REAL(sexpTFexpr)[i+(r*nTFexpr)];
@@ -273,9 +273,9 @@ extern "C" {
 			}
 		}
 		
-		alpha_i0TF = (double *)malloc(sizeof(double)*nTFexpr);
-		alpha_iTF = (double *) malloc(sizeof(double)*nTFexpr);
-		TF_sigma = (double *) malloc(sizeof(double)*nTFexpr);
+		alpha_i0TF = (double *)R_alloc(nTFexpr, sizeof(double));
+		alpha_iTF = (double *) R_alloc(nTFexpr, sizeof(double));
+		TF_sigma = (double *) R_alloc(nTFexpr, sizeof(double));
 		for(i=0; i<nTFexpr; i++) {
 			alpha_i0TF[i] = REAL(sexpalpha_i0TF)[i];
 			alpha_iTF[i] = REAL(sexpalpha_iTF)[i];
@@ -319,7 +319,7 @@ extern "C" {
 
 	double *O_sigma = NULL;
 	if(mRNA_sigma != NULL) {
-		O_sigma = (double *) malloc(sizeof(double)*O_cnt);
+		O_sigma = (double *) R_alloc(O_cnt, sizeof(double));
 
 		for(i=0; i<O_cnt; i++) {
 			O_sigma[i] = REAL(mRNA_sigma)[i];
@@ -328,17 +328,17 @@ extern "C" {
 
 	double *A_sigma = NULL;
 	if(use_miRNA_expression){
-		A_sigma = (double *) malloc(sizeof(double)*A_cnt);
+		A_sigma = (double *) R_alloc(A_cnt, sizeof(double));
 		for(i=0; i<A_cnt; i++) {
 			A_sigma[i] = REAL(miRNA_sigma)[i];
 		}
 	}
 
-	double **O_mu = (double **)malloc(sizeof(double*)*2);
-	int** methylated = (int**) malloc(sizeof(int*) * 2);
+	double **O_mu = (double **)R_alloc(2, sizeof(double*));
+	int** methylated = (int**) R_alloc(2, sizeof(int*));
 	for(c=0; c<2; c++) {
-		methylated[c] = (int*) malloc(sizeof(int) * O_cnt);
-		O_mu[c] = (double *)malloc(sizeof(double)*O_cnt);
+		methylated[c] = (int*) R_alloc(O_cnt, sizeof(int));
+		O_mu[c] = (double *)R_alloc(O_cnt, sizeof(double));
 		for(j=0; j<O_cnt; j++) {
 			methylated[c][i] = (int)INTEGER(sexpaccessible)[c + j*2];
 			if(condition_specific)
@@ -443,6 +443,15 @@ extern "C" {
 	UNPROTECT(8+T_cnt+A_cnt);
 
 	delete(bn);
+
+	if(A_cnt > 0){
+		delete[] S2O;
+		delete[] SparentsOfO;
+	}
+	if(T_cnt > 0){
+		delete[] TparentsOfO;
+		delete[] T2O;
+	}
 
       	return result;
   }

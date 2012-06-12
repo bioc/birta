@@ -225,19 +225,22 @@ BayesNetwork::BayesNetwork(int O_cnt, int A_cnt, int T_cnt, char **mRNAs, char *
 	S_npossible_swaps = 0;
 	
 	this->only_switches = only_switches;
-	
-
+		
+	this->posterior_omega_TF = (double**) calloc(T_cnt, sizeof(double*));
+	for(i = 0; i < T_cnt; i++)
+		this->posterior_omega_TF[i] = (double*) calloc(T2O[i].size(), sizeof(double));
+	this->posterior_omega_miRNA = (double**) calloc(A_cnt, sizeof(double*));
+	for(i = 0; i < A_cnt; i++)
+		this->posterior_omega_miRNA[i] = (double*) calloc(S2O[i].size(), sizeof(double));	
 	if(this->weight_samples_per_move > 0){
-		this->posterior_omega_TF = (double**) calloc(T_cnt, sizeof(double*));
-		for(i = 0; i < T_cnt; i++)
-			this->posterior_omega_TF[i] = (double*) calloc(T2O[i].size(), sizeof(double));
-		this->posterior_omega_miRNA = (double**) calloc(A_cnt, sizeof(double*));
-		for(i = 0; i < A_cnt; i++)
-			this->posterior_omega_miRNA[i] = (double*) calloc(S2O[i].size(), sizeof(double));
-	}
-	else{
-		this->posterior_omega_TF = omega_TF;
-		this->posterior_omega_miRNA = omega_miRNA;
+		for(i = 0; i < T_cnt; i++){
+			for(j = 0; j < T2O[i].size(); j++)
+				posterior_omega_TF[i][j] = omega_TF[i][j];
+		}
+		for(i = 0; i <  A_cnt; i++){
+			for(j = 0; j < S2O[i].size(); j++)
+				posterior_omega_miRNA[i][j] = omega_miRNA[i][j];
+		}
 	}
 }
 
@@ -249,18 +252,20 @@ BayesNetwork::~BayesNetwork() {
 		CFree(activeMiRNAs);		
 		CFree(miR_higher_in_condition);
 		for(i=0; i<A_cnt; i++) {
-			CFree(miRNAs[i]);  // IDs of miRNAs
-			CFree(omega_miRNA[i]);
+			//CFree(miRNAs[i]);  // IDs of miRNAs
+			//CFree(omega_miRNA[i]);
+			CFree(posterior_omega_miRNA[i]);
 		}
-		CFree(miRNAs);
-		CFree(omega_miRNA);
+		//CFree(miRNAs);
+		//CFree(omega_miRNA);
+		CFree(posterior_omega_miRNA);
 		for(c = 0; c < 2; c++){
 			CFree(posterior_miRNA[c]);
 			CFree(S[c]);
 		}
 		CFree(posterior_miRNA);
 		CFree(S);
-		for(i=0; i<A_cnt; i++) {
+		/*for(i=0; i<A_cnt; i++) {
 		  	S2O[i].clear();
 			if(!only_switches)
 				S_potential_swaps[i].clear();
@@ -269,8 +274,8 @@ BayesNetwork::~BayesNetwork() {
 		delete [] S2O;
 		if(!only_switches)
 			delete [] S_potential_swaps;				
-		delete [] S_possible_swaps;
-		if(A != NULL){
+		delete [] S_possible_swaps;*/
+		/*if(A != NULL){
 			if(MODEL == 1) {
 				CFree(A_sigma);
 			}
@@ -283,34 +288,32 @@ BayesNetwork::~BayesNetwork() {
 		  	        CFree(A[c]);			
 			}
 			CFree(A);
-		}
+		}*/
 	}	
 	if(T_cnt > 0){
 		CFree(activeTFs);
-		for(i=0; i<T_cnt; i++) {	
+		/*for(i=0; i<T_cnt; i++) {	
 			//printf("%s (%d) ", TFs[i], i);		
 			CFree(TFs[i]);  // IDs of transcription factors
+			T2O[i].clear();	
 			//CFree(omega_TF[i]);			
 		}
 		CFree(TFs);
 		CFree(omega_TF);
+		delete [] T2O;*/
 		
 		for(c=0; c<2; c++) {
 			CFree(posterior_TF[c]);		
-			CFree(T[c]);
+			//CFree(T[c]);
 		}
 		CFree(posterior_TF);	
-		CFree(T);
-		for(i=0; i<T_cnt; i++) {
-		  T2O[i].clear();
-		}
-		delete [] T2O;
+		/*CFree(T);		
 		if(!only_switches){
 			for(i=0; i<T_cnt; i++) {
 				T_potential_swaps[i].clear();
 			}
 			delete [] T_potential_swaps;
-		}			
+		}*/			
 		if(T_possible_swaps != NULL) {
 			for(c=0; c<2; c++) {
 				for(i=0; i<T_cnt; i++) {
@@ -322,16 +325,16 @@ BayesNetwork::~BayesNetwork() {
 			CFree(T_npossible_swaps);
 		}
 	}
-	if(MODEL == 1) {
+	/*if(MODEL == 1) {
 		CFree(O_sigma);
 	}	
 	for(i=0; i<O_cnt; i++) {
 		CFree(mRNAs[i]); // IDs of mRNAs		
 	}
-	CFree(mRNAs);		
+	CFree(mRNAs);*/		
 		
 		
-	for(c=0; c<2; c++) {
+	/*for(c=0; c<2; c++) {
 		for(i=0; i<O_cnt; i++) {
 			CFree(O[c][i]);
 		}
@@ -376,7 +379,7 @@ BayesNetwork::~BayesNetwork() {
 		CFree(alpha_iTF);
 		CFree(TF_sigma);
 		
-	}	
+	}	*/
 }
 
 double BayesNetwork::logNB(double x, double mu, double phi){

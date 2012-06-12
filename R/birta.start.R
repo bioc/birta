@@ -1,5 +1,5 @@
 
-birtaStart <- function(mRNAexpr, miRNAexpr=NULL, mRNA.data.type=c("array", "RNAseq"), miRNA.data.type=c("array", "RNAseq"), genesetsTF=NULL, genesetsmiRNA=NULL, replicates=c(5, 5, 5, 5), n0=1, alpha=1, beta=0.1, alpha_i=NULL, alpha_i0=NULL, b_j, niter=1e6, burnin=5*1e5, thin=50, model=c("all-plug-in", "no-plug-in"), only_switches=FALSE, noTF=FALSE, nomiRNA=FALSE, A_sigma=NULL, O_sigma, omega_miRNA=NULL, omega_TF=NULL, weightSampleMean=0, weightSampleVariance=1, equal.regulator.weights=TRUE, potential_swaps=NULL, weight_samples_per_move=10, theta_TF=0.01, theta_miRNA=0.01, lambda_omega=0, init_S=NULL, init_T=NULL, condition.specific.inference=TRUE, TFexpr=NULL, alpha_i0TF=NULL, alpha_iTF=NULL, TF_sigma=NULL, alphaTF=NULL, betaTF=NULL, accessible=TRUE, perc.overlap.cutoff=0.8) 
+birtaStart <- function(mRNAexpr, miRNAexpr=NULL, mRNA.data.type=c("array", "RNAseq"), miRNA.data.type=c("array", "RNAseq"), genesetsTF=NULL, genesetsmiRNA=NULL, replicates=c(5, 5, 5, 5), n0=1, alpha=1, beta=0.1, alpha_i=NULL, alpha_i0=NULL, b_j, niter=1e6, burnin=5*1e5, thin=50, model=c("all-plug-in", "no-plug-in"), only_switches=FALSE, noTF=FALSE, nomiRNA=FALSE, A_sigma=NULL, O_sigma, omega_miRNA=NULL, omega_TF=NULL, weightSampleMean=0, weightSampleVariance=1, equal.regulator.weights=TRUE, potential_swaps=NULL, weight_samples_per_move=10, theta_TF=0.01, theta_miRNA=0.01, lambda_omega=0, init_S=NULL, init_T=NULL, condition.specific.inference=TRUE, TFexpr=NULL, alpha_i0TF=NULL, alpha_iTF=NULL, TF_sigma=NULL, alphaTF=NULL, betaTF=NULL, accessible=NULL, perc.overlap.cutoff=0.8) 
 {
 
 	model = match.arg(model, several.ok=FALSE)
@@ -91,7 +91,7 @@ birtaStart <- function(mRNAexpr, miRNAexpr=NULL, mRNA.data.type=c("array", "RNAs
 		colnames(init_S) = rownames(miRNAexpr)
 	}	
 	if(is.null(accessible)){
-		accessible = matrix(0, nrow=2, NROW(mRNAexpr))
+		accessible = matrix(1, nrow=2, NROW(mRNAexpr))
 		colnames(accessible) = rownames(mRNAexpr)
 	}	
 	accessible = accessible[, rownames(mRNAexpr)]

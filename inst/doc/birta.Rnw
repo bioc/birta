@@ -189,7 +189,7 @@ In accordance with recent findings \cite{Wu2011}, the default model of \Rpackage
 head(exprs(TFexpr))
 @
 
-Differential expression of these TFs can be assessed by subsetting our previous \mathtt{limmamRNA} object. \Rfunction{birta} then automatically extracts differentially expressed TFs from the matrix using \Rfunarg{lfc.mRNA} and \Rfunarg{fdr.mRNA} as log fold change and p-value cutoff respectively. The expression of these selected TFs is then used in the model. Activities of non-differentially expressed TFs are modeled with the default model.
+Differential expression of these TFs can be assessed by subsetting our previous $\mathtt{limmamRNA} $object. \Rfunction{birta} then automatically extracts differentially expressed TFs from the matrix using \Rfunarg{lfc.mRNA} and \Rfunarg{fdr.mRNA} as log fold change and p-value cutoff respectively. The expression of these selected TFs is then used in the model. Activities of non-differentially expressed TFs are modeled with the default model.
 
 <<EColi TFexpr, echo=TRUE, results=hide>>=
 limmaTF = limmamRNA
