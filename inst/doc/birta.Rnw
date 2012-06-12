@@ -195,7 +195,9 @@ Differential expression of these TFs can be assessed by subsetting our previous 
 limmaTF = limmamRNA
 limmaTF$pvalue.tab = limmaTF$pvalue.tab[limmaTF$pvalue.tab$ID %in% fData(TFexpr)$Entrez, ]
 limmaTF$lm.fit$s2.post = limmaTF$lm.fit$s2.post[limmaTF$pvalue.tab$ID]
-limmaTF$pvalue.tab$ID = fData(TFexpr)$symbol[match(limmaTF$pvalue.tab$ID, fData(TFexpr)$Entrez)]
+entrez2id = rownames(fData(TFexpr))
+names(entrez2id) = fData(TFexpr)$Entrez
+limmaTF$pvalue.tab$ID = entrez2id[limmaTF$pvalue.tab$ID]
 names(limmaTF$lm.fit$s2.post) = limmaTF$pvalue.tab$ID 
 ecoli_TFexpr = birta(EColiOxygen, nrep=c(0, 0, 3, 4), 
 genesets=EColiNetwork, TFexpr=TFexpr, limmamRNA=limmamRNA, limmaTF=limmaTF, model="all-plug-in", niter=50000, 

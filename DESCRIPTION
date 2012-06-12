@@ -1,6 +1,6 @@
 Package: birta
-Version: 1.0.1
-Date: 2012-04-11
+Version: 1.1.1
+Date: 2012-06-12
 Title: Bayesian Inference of Regulation of Transcriptional Activity
 Author: Benedikt Zacher, Khalid Abnaof, Stephan Gade, Erfan Younesi, Achim Tresch, Holger Froehlich
 Maintainer: Benedikt Zacher <zacher@lmb.uni-muenchen.de>
