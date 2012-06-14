@@ -69,7 +69,6 @@ Since miRNA expressions are available, miRNAs are assumed to be active under the
 Now, the data is passed to \Rfunction{birta}. To keep the computations low in this example, the $\omega$ vector is not sampled (\Rfunarg{sample.weights=FALSE}), potential swaps were pre-computed and the number of iterations is very low. In a real application, the number of iterations should be much higher to make sure, that the Markov-Cahin has converged.
 
 <<simulation MCMC, echo=TRUE, results=hide>>=
-set.seed(12345)
 sim_result = birta(sim$dat.mRNA, sim$dat.miRNA, limmamRNA=limmamRNA, 
 limmamiRNA=limmamiRNA, nrep=c(5,5,5,5), genesets=genesets, 
 model="all-plug-in", niter=50000, nburnin=10000, 
@@ -144,7 +143,7 @@ limmamRNA = limmaAnalysis(EColiOxygen, design, contrasts)
 ecoli_result = birta(EColiOxygen, nrep=c(0, 0, 3, 4), 
 genesets=EColiNetwork, limmamRNA=limmamRNA, 
 model="all-plug-in", niter=50000, nburnin=10000, 
-sample.weights=FALSE, condition.specific.inference=FALSE)
+sample.weights=FALSE, condition.specific.inference=FALSE, run.pretest=TRUE)
 @
 
 <<ecoli log-lik plot dummy, echo=TRUE, eval=FALSE, results=hide>>=
@@ -189,19 +188,17 @@ In accordance with recent findings \cite{Wu2011}, the default model of \Rpackage
 head(exprs(TFexpr))
 @
 
-Differential expression of these TFs can be assessed by subsetting our previous $\mathtt{limmamRNA} $object. \Rfunction{birta} then automatically extracts differentially expressed TFs from the matrix using \Rfunarg{lfc.mRNA} and \Rfunarg{fdr.mRNA} as log fold change and p-value cutoff respectively. The expression of these selected TFs is then used in the model. Activities of non-differentially expressed TFs are modeled with the default model.
+Differential expression of these TFs can be assessed by subsetting our previous $\mathtt{limmamRNA}$ object. \Rfunction{birta} then automatically extracts differentially expressed TFs from the matrix using \Rfunarg{lfc.mRNA} and \Rfunarg{fdr.mRNA} as log fold change and p-value cutoff respectively. The expression of these selected TFs is then used in the model. Activities of non-differentially expressed TFs are modeled with the default model.
 
 <<EColi TFexpr, echo=TRUE, results=hide>>=
 limmaTF = limmamRNA
 limmaTF$pvalue.tab = limmaTF$pvalue.tab[limmaTF$pvalue.tab$ID %in% fData(TFexpr)$Entrez, ]
 limmaTF$lm.fit$s2.post = limmaTF$lm.fit$s2.post[limmaTF$pvalue.tab$ID]
-entrez2id = rownames(fData(TFexpr))
-names(entrez2id) = fData(TFexpr)$Entrez
-limmaTF$pvalue.tab$ID = entrez2id[limmaTF$pvalue.tab$ID]
+limmaTF$pvalue.tab$ID = fData(TFexpr)$symbol[match(limmaTF$pvalue.tab$ID, fData(TFexpr)$Entrez)]
 names(limmaTF$lm.fit$s2.post) = limmaTF$pvalue.tab$ID 
 ecoli_TFexpr = birta(EColiOxygen, nrep=c(0, 0, 3, 4), 
 genesets=EColiNetwork, TFexpr=TFexpr, limmamRNA=limmamRNA, limmaTF=limmaTF, model="all-plug-in", niter=50000, 
-nburnin=10000, sample.weights=FALSE, condition.specific.inference=FALSE)
+nburnin=10000, sample.weights=FALSE, condition.specific.inference=FALSE, run.pretest=TRUE)
 @
 
 If the TF expression is considered - like for miRNAs - the TF is assumed to be active under the condition, where it is higher expressed. Therefore, it is possible to make a condition specific prediction for the activity of these TFs. For TFs, which are not differentially expressed, the prediction refers again to a switch in activity between both conditions. 
