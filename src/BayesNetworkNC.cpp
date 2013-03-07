@@ -27,10 +27,9 @@
 using namespace std;
 
 		
-BayesNetworkNC::BayesNetworkNC(int O_cnt, int A_cnt, int T_cnt, char **mRNAs, char **miRNAs, char **TFs, int **rep_cnt, double ***mRNA_expression, double ***miRNA_expression, int mRNADataType, int miRNADataType, list<int> *S2O, list<int> *SparentsOfO, list<int> *T2O, list<int> *TparentsOfO,  double n0, double alpha, double beta, double *alpha_i0, double* alpha_i, double **omega_miRNA, double **omega_TF, double *miRNA_sigma, double *mRNA_sigma, int model, double **O_mu, int only_switches, list<int> *S_potential_swaps, list<int> *T_potential_swaps, double weightSampleMean, double weightSampleVariance, int weight_samples_per_move, int equal_regulator_weights, double theta_TF, double theta_miRNA, double lambda_omega, int** init_S, int** init_T, double ***Otf, int nTFexpr, double *alpha_i0TF, double *alpha_iTF, double *TF_sigma, double alphaTF, double betaTF, int** accessible) { 
+BayesNetworkNC::BayesNetworkNC(int O_cnt, int A_cnt, int T_cnt, char **mRNAs, char **miRNAs, char **TFs, int **rep_cnt, double ***mRNA_expression, double ***miRNA_expression, int mRNADataType, int miRNADataType, list<int> *S2O, list<int> *SparentsOfO, list<int> *T2O, list<int> *TparentsOfO,  double n0, double alpha, double beta, double *alpha_i0, double* alpha_i, double **omega_miRNA, double **omega_TF, double *miRNA_sigma, double *mRNA_sigma, int model, double **O_mu, int only_switches, list<int> *S_potential_swaps, list<int> *T_potential_swaps, double weightSampleMean, double weightSampleVariance, int weight_samples_per_move, int equal_regulator_weights, double theta_TF, double theta_miRNA, double lambda_omega, int** init_S, int** init_T, double ***Otf, int nTFexpr, double *alpha_i0TF, double *alpha_iTF, double *TF_sigma, double alphaTF, double betaTF) { 
 
 	this->equal_regulator_weights = equal_regulator_weights;
-	this->accessible = accessible;
 	
 	this->MODEL = model;
 
@@ -140,7 +139,7 @@ BayesNetworkNC::BayesNetworkNC(int O_cnt, int A_cnt, int T_cnt, char **mRNAs, ch
 				this->miR_higher_in_condition[i] = 1;
 			}
 			else {
-				this->miR_higher_in_condition[i] = 0;
+				this->miR_higher_in_condition[i] = -1;
 			}
 			//Rprintf("m1=%f, m2=%f, higher cond := %d\n", mean_c1, mean_c2, this->miR_higher_in_condition[i]);
 		}
@@ -164,7 +163,7 @@ BayesNetworkNC::BayesNetworkNC(int O_cnt, int A_cnt, int T_cnt, char **mRNAs, ch
 			mean_c1 = mean_c1/(rep_cnt[1][0] * S2O[i].size());
 			mean_c2 = mean_c2/(rep_cnt[1][1] * S2O[i].size()) ;
 			if(mean_c1 < mean_c2) {
-				this->miR_higher_in_condition[i] = 0; // assumption: miRNA is active in that condition, in which gene expression is lower
+				this->miR_higher_in_condition[i] = -1; // assumption: miRNA is active in that condition, in which gene expression is lower
 			}
 			else {
 				this->miR_higher_in_condition[i] = 1;
@@ -324,7 +323,7 @@ double* BayesNetworkNC::MCMC(long niter, long burnin, int thin) {
 		for(r=0; r<this->rep_cnt[0][c]; r++) {
 			if(A != NULL){
 		    		for(i=0; i<this->A_cnt; i++) {
-					if(!isnan(A[c][i][r])) { // check for NaN
+					if(!(A[c][i][r] != A[c][i][r])) { // check for NaN
 						if(MODEL == 1) {
 							if(this->miRNADataType == ARRAY)
 								log_lik -= (pow(A[c][i][r] - get_mu0(i, c), 2)/pow(A_sigma[i], 2));
@@ -345,7 +344,7 @@ double* BayesNetworkNC::MCMC(long niter, long burnin, int thin) {
 		// sum for mRNA replicates
 		for(r=0; r<this->rep_cnt[1][c]; r++) {
 		    	for(j=0; j<this->O_cnt; j++) {
-				if(!isnan(O[c][j][r])) { // check for NaN
+				if(!(O[c][j][r] != O[c][j][r])) { // check for NaN
 					if(MODEL == 1) {
 						if(this->mRNADataType == ARRAY)
 							log_lik -= (pow(O[c][j][r] - O_mu[c][j], 2)/pow(O_sigma[j], 2));
@@ -462,7 +461,13 @@ double* BayesNetworkNC::MCMC(long niter, long burnin, int thin) {
 					if(weight_sampling == 1) {
 						miR_weight_samples = (double*) calloc(S2O[swapped2one].size(), sizeof(double));
 						rnd = rnorm(this->weightSampleMean, this->weightSampleVariance);
-						for(j = 0; j < S2O[swapped2one].size(); j++){
+						double rndup = rnorm(this->weightSampleMean, this->weightSampleVariance);
+						double rnddown = rnorm(this->weightSampleMean, this->weightSampleVariance);
+						for(j = 0; j < (int)S2O[swapped2one].size(); j++){
+							if(this->omega_miRNA[swapped2one][j] <= 0) 
+								rnd = rnddown;
+							if(this->omega_miRNA[swapped2one][j] >= 0)
+								rnd = rndup;
 							if(!equal_regulator_weights)								
 								rnd = rnorm(this->weightSampleMean, this->weightSampleVariance);
 							
@@ -556,8 +561,14 @@ double* BayesNetworkNC::MCMC(long niter, long burnin, int thin) {
 
 					if(weight_sampling == 1) {	
 						tf_weight_samples = (double*) calloc(T2O[swapped2one].size(), sizeof(double));
-						rnd = rnorm(this->weightSampleMean, this->weightSampleVariance);
-						for(j = 0; j <T2O[swapped2one].size(); j++){
+					        rnd = rnorm(this->weightSampleMean, this->weightSampleVariance);
+						double rndup = rnorm(this->weightSampleMean, this->weightSampleVariance);
+						double rnddown = rnorm(this->weightSampleMean, this->weightSampleVariance);
+						for(j = 0; j < (int)T2O[swapped2one].size(); j++){
+							if(this->omega_TF[swapped2one][j] <= 0) 
+								rnd = rnddown;
+							if(this->omega_TF[swapped2one][j] >= 0)
+								rnd = rndup;
 							if(!equal_regulator_weights)								
 								rnd = rnorm(this->weightSampleMean, this->weightSampleVariance);
 							
@@ -635,9 +646,15 @@ double* BayesNetworkNC::MCMC(long niter, long burnin, int thin) {
 				for(weight_sample_it = 0; weight_sample_it<this->weight_samples_per_move; weight_sample_it++) {
 					double *tf_weight_samples=NULL;
 					if(weight_sampling == 1) {
-					       tf_weight_samples = (double*) calloc(T2O[switchid].size(), sizeof(double));
-						rnd = rnorm(this->weightSampleMean, this->weightSampleVariance);
-						for(j = 0; j < T2O[switchid].size(); j++){
+					      tf_weight_samples = (double*) calloc(T2O[switchid].size(), sizeof(double));
+					          rnd = rnorm(this->weightSampleMean, this->weightSampleVariance);
+						double rndup = rnorm(this->weightSampleMean, this->weightSampleVariance);
+						double rnddown = rnorm(this->weightSampleMean, this->weightSampleVariance);
+						for(j = 0; j < (int)T2O[switchid].size(); j++){
+							if(this->omega_TF[switchid][j] <= 0) 
+								rnd = rnddown;
+							if(this->omega_TF[switchid][j] >= 0)
+								rnd = rndup;
 							if(!equal_regulator_weights)								
 								rnd = rnorm(this->weightSampleMean, this->weightSampleVariance);
 							
@@ -724,7 +741,7 @@ double* BayesNetworkNC::MCMC(long niter, long burnin, int thin) {
 			// miRNA is switched
 			else { 				
 				// if miRNA is (in-)active in both cases, miRNA will be set active in higher expressed case
-				int condition = 1; //miR_higher_in_condition[switchid];
+				int condition = abs(miR_higher_in_condition[switchid]);
 				//Rprintf("c:=%d, swid:=%d, A_cnt=%d\n", condition, switchid, A_cnt);
 				int weight_sample_it;
 				for(weight_sample_it = 0; weight_sample_it<this->weight_samples_per_move; weight_sample_it++) {
@@ -732,7 +749,13 @@ double* BayesNetworkNC::MCMC(long niter, long burnin, int thin) {
 					if(weight_sampling == 1) {
 					       miR_weight_samples = (double*) calloc(S2O[switchid].size(), sizeof(double));
 						rnd = rnorm(this->weightSampleMean, this->weightSampleVariance);
-						for(j = 0; j < S2O[switchid].size(); j++){
+						double rndup = rnorm(this->weightSampleMean, this->weightSampleVariance);
+						double rnddown = rnorm(this->weightSampleMean, this->weightSampleVariance);
+						for(j = 0; j < (int)S2O[switchid].size(); j++){
+							if(this->omega_miRNA[switchid][j] <= 0) 
+								rnd = rnddown;
+							if(this->omega_miRNA[switchid][j] >= 0)
+								rnd = rndup;
 							if(!equal_regulator_weights)								
 								rnd = rnorm(this->weightSampleMean, this->weightSampleVariance);
 							
@@ -878,7 +901,12 @@ double* BayesNetworkNC::MCMC(long niter, long burnin, int thin) {
 	for(int mir=0; mir<A_cnt; mir++) {
 		for(c=0; c<2;c++) {
 			posterior_miRNA[c][mir] /= (double) k;
-		}		
+		}
+		if(miR_higher_in_condition[mir] == -1) { // if miRNA is higher expressed in c=0 it should be acitve here (see dummy coding of miR_higher_in_condition)
+			double post_c1 = this->posterior_miRNA[0][mir];
+			this->posterior_miRNA[0][mir] = this->posterior_miRNA[1][mir];
+			this->posterior_miRNA[1][mir] = post_c1;
+		}
 		if(weight_sampling == 1){
 			for(j = 0; j < (int)S2O[mir].size(); j++)
 				posterior_omega_miRNA[mir][j] /= (double)k;

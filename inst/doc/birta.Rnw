@@ -41,7 +41,6 @@ The main function of the package, \Rfunction{birta}, provides a flexible and eas
   \item \textbf{potential\_swaps} is the output of \Rfunction{get\_potential\_swaps}. In a swap move, two TFs or two miRNAs, having different activity states, exchange these. This is especially useful for highly overlapping regulator-target graphs. If not specified, \Rfunction{birta} automatically calls \Rfunction{get\_potential\_swaps} to calculate all potential swaps with the default threshold of a minimal overlap of targets between regulators. However, if it needs to be pre-computed differently, it can be directly passed to \Rfunction{birta}.
   \item If \textbf{run.pretest} is \Rclass{true}, miRNA and TF states are initialized with the result of a hypergeometric test in order to improve convergence. Each target gene set is tested for overrepresentation of differentially expressed genes. The corresponding regulator is set active, if the gene set shows an enrichment with a p-value $<0.05$ (default). This option should only be used in case of observed convergence problems. Otherwise the inference starts with all activity states set to zero.
   \item \textbf{nrep} is an integer vector of length four, which specifies the number of replicates for miRNA and mRNA expression experiments: c(\#miRNA-reps-condition1, \#miRNA-reps-condition2, \#mRNA-reps-condition1, \#mRNA-reps-condition2).
-  \item \textbf{condition.specific.inference} Should inference on TF / miRNA activities be made only RELATIVE to a reference condition or independently in both conditions? In the first case this amounts to look, in how far activities of TFs and miRNAs can explain differential gene expression, whereas in the second case gene expression in each condition is treated as a function of regulator activities.
 \end{itemize}
 
 \subsection{Application to a simulated data set}
@@ -96,11 +95,12 @@ dev.off()
 \label{figure1}
 \end{figure}
 
-The \Robject{sim\_result} object is a \Rclass{list} and the sampled activity states can be accessed via \Robject{miRNAstates1} and \Robject{miRNAstates2} respectively. Each vector contains the frequency, with which a specific regulator was sampled from the posterior distribution. A value of 0 means, that the regulator was never sampled as active, meaning switching it to active fits the model very badly. A value of 1 means, that the regulator of interest is most certainly active, since switching its state to active substantially increases the likelihood of the model. \\
+The \Robject{sim\_result} object is a \Rclass{list} and the sampled activity states can be accessed via \Robject{TFActivitySwitch}, \Robject{miRNAstates1} and \Robject{miRNAstates2} respectively. Each vector contains the frequency, with which a specific regulator was sampled from the posterior distribution. A value of 0 means, that the regulator was never sampled as active, meaning switching it to active fits the model very badly. A value of 1 means, that the regulator of interest is most certainly active, since switching its state to active substantially increases the likelihood of the model. \\
 
 
 <<simulation result, echo=TRUE>>=
 sim$TFstates[sim$TFstates == 1]
+sim_result$TFActivitySwitch[sim_result$TFActivitySwitch > 0]
 sim$miRNAstates[sim$miRNAstates == 1]
 sim_result$miRNAstates1[sim_result$miRNAstates1 > 0]
 sim_result$miRNAstates2[sim_result$miRNAstates2 > 0]
@@ -133,7 +133,7 @@ EColiOxygen
 head(exprs(EColiOxygen))
 @
 
-Differentially expressed genes are calculated using \Rfunction{limmaAnalysis}, which is then passed to \Rfunction{birta}, together with the TF-target graph \Robject{EColiNetwork}. Here we use birta to look for regulator activities that can explain differential gene expression between anaerobic and aerobic growth:
+Differentially expressed genes are calculated using \Rfunction{limmaAnalysis}, which is then passed to \Rfunction{birta}, together with the TF-target graph \Robject{EColiNetwork}. 
 
 <<EColi, echo=TRUE, results=hide>>=
 design = model.matrix(~0+factor(pData(EColiOxygen)$GrowthProtocol))
@@ -143,7 +143,7 @@ limmamRNA = limmaAnalysis(EColiOxygen, design, contrasts)
 ecoli_result = birta(EColiOxygen, nrep=c(0, 0, 3, 4), 
 genesets=EColiNetwork, limmamRNA=limmamRNA, 
 model="all-plug-in", niter=50000, nburnin=10000, 
-sample.weights=FALSE, condition.specific.inference=FALSE, run.pretest=TRUE)
+sample.weights=FALSE)
 @
 
 <<ecoli log-lik plot dummy, echo=TRUE, eval=FALSE, results=hide>>=
@@ -171,13 +171,11 @@ sort(activeTFs)
 @
 
 <<ecoli DE genes, echo=TRUE>>=
-if(length(activeTFs) > 0){
-	DEgenes = limmamRNA$pvalue.tab$ID[limmamRNA$pvalue.tab$adj.P.Val < 0.05]
-	DEgenesInTargets = sapply(ecoli_result$genesetsTF[names(activeTFs)], 
-	function(x) c(length(which(x %in% DEgenes)), length(x)))
-	rownames(DEgenesInTargets) = c("#DEgenes", "#targets")
-	DEgenesInTargets[,order(DEgenesInTargets["#targets",], decreasing=T)]
-}
+DEgenes = limmamRNA$pvalue.tab$ID[limmamRNA$pvalue.tab$adj.P.Val < 0.05]
+DEgenesInTargets = sapply(ecoli_result$genesetsTF[names(activeTFs)], 
+function(x) c(length(which(x %in% DEgenes)), length(x)))
+rownames(DEgenesInTargets) = c("#DEgenes", "#targets")
+DEgenesInTargets[,order(DEgenesInTargets["#targets",], decreasing=T)]
 @
 
 \subsubsection*{Using transcription factor expression}
@@ -188,22 +186,21 @@ In accordance with recent findings \cite{Wu2011}, the default model of \Rpackage
 head(exprs(TFexpr))
 @
 
-Differential expression of these TFs can be assessed by subsetting our previous $\mathtt{limmamRNA}$ object. \Rfunction{birta} then automatically extracts differentially expressed TFs from the matrix using \Rfunarg{lfc.mRNA} and \Rfunarg{fdr.mRNA} as log fold change and p-value cutoff respectively. The expression of these selected TFs is then used in the model. Activities of non-differentially expressed TFs are modeled with the default model.
+\Rfunction{limmaAnalysis} is used to assess differential expression of these TFs. Both objects are then passed to \Rfunction{birta}, which automatically extracts differentially expressed TFs from the matrix using \Rfunarg{lfc.mRNA} and \Rfunarg{fdr.mRNA} as log fold change and p-value cutoff respectively. The expression of these selected TFs is then used in the model. Activities of non-differentially expressed TFs are modeled with the default model.
 
 <<EColi TFexpr, echo=TRUE, results=hide>>=
-limmaTF = limmamRNA
-limmaTF$pvalue.tab = limmaTF$pvalue.tab[limmaTF$pvalue.tab$ID %in% fData(TFexpr)$Entrez, ]
-limmaTF$lm.fit$s2.post = limmaTF$lm.fit$s2.post[limmaTF$pvalue.tab$ID]
-limmaTF$pvalue.tab$ID = fData(TFexpr)$symbol[match(limmaTF$pvalue.tab$ID, fData(TFexpr)$Entrez)]
-names(limmaTF$lm.fit$s2.post) = limmaTF$pvalue.tab$ID 
+limmaTF = limmaAnalysis(TFexpr, design, contrasts)
 ecoli_TFexpr = birta(EColiOxygen, nrep=c(0, 0, 3, 4), 
-genesets=EColiNetwork, TFexpr=TFexpr, limmamRNA=limmamRNA, limmaTF=limmaTF, model="all-plug-in", niter=50000, 
-nburnin=10000, sample.weights=FALSE, condition.specific.inference=FALSE, run.pretest=TRUE)
+genesets=EColiNetwork, TFexpr=TFexpr, limmaTF=limmaTF, 
+limmamRNA=limmamRNA, model="all-plug-in", niter=50000, 
+nburnin=10000, sample.weights=FALSE)
 @
 
 If the TF expression is considered - like for miRNAs - the TF is assumed to be active under the condition, where it is higher expressed. Therefore, it is possible to make a condition specific prediction for the activity of these TFs. For TFs, which are not differentially expressed, the prediction refers again to a switch in activity between both conditions. 
 
 <<EColi TFexpr result, echo=TRUE>>=
+sort(ecoli_TFexpr$TFstates1[ecoli_TFexpr$TFstates1 > 0.9])
+sort(ecoli_TFexpr$TFstates2[ecoli_TFexpr$TFstates2 > 0.9])
 sort(ecoli_TFexpr$TFActivitySwitch[ecoli_TFexpr$TFActivitySwitch > 0.9])
 @ 
 

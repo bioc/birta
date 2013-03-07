@@ -7,15 +7,15 @@ Main interface for Bayesian Inference of Regulation of Transcriptional Activity.
 The function estimates parameterization of the model and then executes MCMC sampling to infer activity states.
 }
 \usage{
-birta(dat.mRNA, dat.miRNA, TFexpr, limmamRNA=NULL, limmamiRNA=NULL, limmaTF=NULL, nrep=NULL, fdr.mRNA=0.05, fdr.miRNA=0.05, lfc.mRNA=0, lfc.miRNA=0, genesets=NULL, lambda=NULL, sample.weights=TRUE, one.regulator.weight=TRUE, theta_TF=NULL, theta_miRNA=NULL, model=c("all-plug-in", "no-plug-in"), niter=500000, nburnin=100000, thin=50, potential_swaps=NULL, run.pretest=FALSE, condition.specific.inference=TRUE, only_switches=FALSE, weightSampleMean=0, weightSampleVariance=0.001, accessible=NULL)
+birta(dat.mRNA, dat.miRNA, TFexpr, limmamRNA=NULL, limmamiRNA=NULL, limmaTF=NULL, nrep=NULL, fdr.mRNA=0.05, fdr.miRNA=0.05, lfc.mRNA=0, lfc.miRNA=0, genesets=NULL, lambda=NULL, sample.weights=TRUE, one.regulator.weight=TRUE, theta_TF=NULL, theta_miRNA=NULL, model=c("all-plug-in", "no-plug-in"), niter=500000, nburnin=100000, thin=50, potential_swaps=NULL, run.pretest=FALSE, condition.specific.inference=TRUE, only_switches=FALSE, weightSampleMean=0, weightSampleVariance=0.01)
 }
 \arguments{
   \item{dat.mRNA}{mRNA expression data (ExpressionSet or matrix). IMPORTANT: Replicates must be ordered according to nrep!}
   \item{dat.miRNA}{miRNA expression data (ExpressionSet or matrix).}
-  \item{TFexpr}{TF expression data (ExpressionSet or matrix): can be a subset of dat.mRNA}
+  \item{TFexpr}{TF expression data (ExpressionSet or matrix).}
   \item{limmamRNA}{Output of limma analysis for mRNA data (list: pvalue.tab, lm.fit).}
   \item{limmamiRNA}{Output of limma analysis for miRNA data (list: pvalue.tab, lm.fit).}
-  \item{limmaTF}{Output of limma analysis for TF data (list: pvalue.tab, lm.fit).}
+  \item{limmaTF}{Output of limma analysis for TF expression data (list: pvalue.tab, lm.fit).}
   \item{nrep}{Vector containing four integers. Entry 1 and 2 are the number of miRNA measurement replicates for condition 1 and 2. Entry 3 and 4 are the number of mRNA measurement replicates for condition 1 and 2.}
   \item{fdr.mRNA}{False discovery rate (FDR) cutoff for significance of the logFC for mRNA data.}
   \item{fdr.miRNA}{False discovery rate (FDR) cutoff for significance of the logFC for miRNA data.}
@@ -24,7 +24,7 @@ birta(dat.mRNA, dat.miRNA, TFexpr, limmamRNA=NULL, limmamiRNA=NULL, limmaTF=NULL
   \item{genesets}{Combined TF / miRNA network. IMPORTANT: Names of TF entries must start with V\$.}
   \item{lambda}{Regularization parameter for edge weights.}
   \item{sample.weights}{Should edge weights be adapted during sampling?}
-  \item{one.regulator.weight}{Should weights of all edges for a specific regulator be the same?}
+  \item{one.regulator.weight}{Sould weights of all edges for a regulator to be the same?}
   \item{theta_TF}{Expected fraction of active TFs.}
   \item{theta_miRNA}{Expected fraction of active miRNAs.}
   \item{model}{Type of model. One out of c("all-plug-in", "weight-plug-in", "no-plug-in").}
@@ -37,7 +37,6 @@ birta(dat.mRNA, dat.miRNA, TFexpr, limmamRNA=NULL, limmamiRNA=NULL, limmaTF=NULL
   \item{only_switches}{Should only switches be performed?}
   \item{weightSampleMean}{Mean for normal distribution used for sampling the omegas.}
   \item{weightSampleVariance}{Variance for normal distribution used for sampling the omegas.}
-  \item{accessible}{0/1 matrix of conditions x mRNAs: 1 = gene is accessible for TF, 0 = gene is not accessible (e.g. due to methylation)}
 }
 \value{
 The function returns a list containing the following entries:
@@ -46,7 +45,7 @@ The function returns a list containing the following entries:
   \item{miRNAActivitySwitch}{Probability of each miRNA switching its activities (non-condition specific sampling).}
   \item{TFstates1}{Probability of each TF to be active in condition 1 (only for condition specific sampling).}
   \item{TFstates2}{Probability of each TF to be active in condition 2 (only for condition specific sampling).}
-  \item{TFactivitySwitch}{Probability of each TF switching its activities (non-condition specific sampling).}
+  \item{miRNAactivitySwitch}{Probability of each TF switching its activities (non-condition specific sampling).}
   \item{log_lik_trace}{Log-likelihood trace of MCMC sampling.}
   \item{TFomega}{Weights of TF-target graph. (effect of a TF on its targets)}
   \item{miRNAomega}{Weights of miRNA-target graph. (effect of a miRNA on its targets)}
@@ -57,7 +56,7 @@ The function returns a list containing the following entries:
   \item{TFexpr}{TF expression data (only if they are specifically included). This might be different from the matrix submitted to the function, due to incompatibilities of network and experimental measurements. Check your warnings and command line output!}    
 }
 \author{
-Holger Froehlich, Benedikt Zacher
+Holger Frohlich, Benedikt Zacher
 }
 \examples{
 data(humanSim)
