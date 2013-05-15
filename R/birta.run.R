@@ -31,7 +31,7 @@
 
 birtaRun = function(dat.mRNA, dat.miRNA, TFexpr, limmamRNA=NULL, limmamiRNA=NULL, limmaTF=NULL, nrep=NULL, fdr.mRNA=0.05, fdr.miRNA=0.05, lfc.mRNA=0, lfc.miRNA=0, genesets=NULL, lambda=NULL, sample.weights=TRUE, one.regulator.weight=TRUE, theta_TF=NULL, theta_miRNA=NULL, model=c("all-plug-in", "no-plug-in"), niter=500000, nburnin=100000, thin=50, potential_swaps=NULL, run.pretest=FALSE, condition.specific.inference=TRUE, only_switches=FALSE, weightSampleMean=0, weightSampleVariance=0.01) {
 
-
+	limmamRNA$pvalue.tab$ID = rownames(limmamRNA$pvalue.tab)
 	if(is.null(nrep)) {
 		cat("Automatic assignement of #replicates with design matrix.\n")
 		if(! is.null(dat.miRNA)) {
@@ -169,6 +169,7 @@ birtaRun = function(dat.mRNA, dat.miRNA, TFexpr, limmamRNA=NULL, limmamiRNA=NULL
 	}		
 	#
 	if(!is.null(dat.miRNA) & !is.null(limmamiRNA)){	
+		limmamiRNA$pvalue.tab$ID = rownames(limmamiRNA$pvalue.tab)
 		if(any(limmamRNA$lm.fit$contrasts != limmamiRNA$lm.fit$contrasts)) {
 			stop("Limma contrasts for mRNA and miRNA expressions differ!\n")
 		}
@@ -293,7 +294,7 @@ birtaRun = function(dat.mRNA, dat.miRNA, TFexpr, limmamRNA=NULL, limmamiRNA=NULL
 	alphaTF = NULL
 	betaTF = NULL
 	if(!is.null(TFexpr) & !is.null(limmaTF)) {	
-
+		limmaTF$pvalue.tab$ID = rownames(limmaTF$pvalue.tab)
 		group1 = as.vector(which(limmaTF$design[,1] == 1))
 		group2 = as.vector(which(limmaTF$design[,2] == 1))
 		TFexpr = TFexpr[,c(group1, group2)]
