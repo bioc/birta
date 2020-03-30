@@ -1,5 +1,5 @@
 Package: birta
-Version: 1.31.0
+Version: 1.31.1
 Date: 2013-03-07
 Title: Bayesian Inference of Regulation of Transcriptional Activity
 Author: Benedikt Zacher, Khalid Abnaof, Stephan Gade, Erfan Younesi,
@@ -22,3 +22,4 @@ LazyLoad: yes
 Packaged: 2012-03-31 07:23:50 UTC; biocbuild
 biocViews: Microarray, Sequencing, GeneExpression, Transcription,
         GraphAndNetwork
+PackageStatus: Deprecated
